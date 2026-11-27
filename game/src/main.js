@@ -17,6 +17,9 @@ const input = new Input(canvas);
 const tuning = CONFIG.game;
 const presentation = CONFIG.presentation;
 const { GROUND_Y, W, H } = CONFIG.view;
+const CLOSE_CALL_DISTANCE = 90;
+const CLOSE_CALL_POINTS = 25;
+const CLOSE_CALL_SECONDS = 0.9;
 const game = {
   state: 'title',
   frozen: false,
@@ -48,6 +51,9 @@ function resetRun() {
   game.distance = 0;
   game.score = 0;
   game.cornPoints = 0;
+  game.closeCallPoints = 0;
+  game.closeCallUntil = 0;
+  game.lungeWasClose = false;
   game.stageBanner = presentation.STAGE_BANNER_SECONDS;
   game.flashSpotted = 0;
   game.particles = seedLeaves();
@@ -108,13 +114,24 @@ function switchStage(stage) {
 function updatePlaying(dt) {
   const { turkey, farmer, world } = game;
   const previousLift = turkey.y;
+  const wasLunging = farmer.state === 'lunge';
   turkey.update(dt, input, world);
   if (previousLift === 0 && turkey.y > 0) audio.jump();
   farmer.update(dt, turkey, world);
   const reachedArch = resolveItems();
+  const caught = !turkey.alive || farmer.caught(turkey);
+  const lunging = farmer.state === 'lunge';
+  if (!wasLunging) game.lungeWasClose = false;
+  if ((wasLunging || lunging) && Math.abs(turkey.x - farmer.x) <= CLOSE_CALL_DISTANCE) {
+    game.lungeWasClose = true;
+  }
+  if (wasLunging && !lunging && game.lungeWasClose && !caught) {
+    game.closeCallPoints += CLOSE_CALL_POINTS;
+    game.closeCallUntil = game.time + CLOSE_CALL_SECONDS;
+  }
 
   game.distance = Math.floor(turkey.x / tuning.PIXELS_PER_METRE);
-  game.score = game.cornPoints + Math.floor(game.distance / tuning.METRES_PER_POINT);
+  game.score = game.cornPoints + game.closeCallPoints + Math.floor(game.distance / tuning.METRES_PER_POINT);
   game.cameraX = Math.max(0, Math.min(turkey.x - tuning.CAMERA_LEAD, world.totalLength - W));
 
   game.stageBanner = Math.max(0, game.stageBanner - dt);
@@ -126,7 +143,7 @@ function updatePlaying(dt) {
     audio.spotted();
   }
 
-  if (!turkey.alive || farmer.caught(turkey)) {
+  if (caught) {
     turkey.alive = false;
     game.state = 'caught';
     audio.caught();

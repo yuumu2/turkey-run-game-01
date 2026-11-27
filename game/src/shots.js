@@ -7,6 +7,7 @@ const SHOT_CAMERA_ANCHOR = 440;
 export function stageShot(name, game) {
   game.frozen = true;
   game.time = 0.72;
+  game.closeCallUntil = 0;
   delete game.shotDustX;
   delete game.shotCover;
 
@@ -36,6 +37,7 @@ export function stageShot(name, game) {
       game.farmer.x = game.turkey.x - 138;
       game.farmer.state = 'lunge';
       game.farmer.lungeRemaining = 0.22;
+      game.closeCallUntil = game.time + 1;
       game.distance = Math.floor(game.turkey.x / CONFIG.game.PIXELS_PER_METRE);
       break;
     }

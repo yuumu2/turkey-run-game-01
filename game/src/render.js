@@ -759,6 +759,35 @@ export class Renderer {
     this.shadow(x, this.ground + 3, 39 * CHARACTER_SCALE, 8, true);
     this.farmerPose(x, this.ground, farmer, CHARACTER_SCALE);
     if (farmer.state === 'search') this.text('?', x, this.ground - 145 * CHARACTER_SCALE, 37, GOLD);
+    if (farmer.state === 'lunge') {
+      this.speechBubble('DINNER TIME!', x + farmer.facing * 42, this.ground - 156, 146);
+    }
+  }
+
+  speechBubble(message, speakerX, speakerY, width) {
+    const c = this.ctx;
+    const x = Math.max(20, Math.min(this.w - width - 20, speakerX - width - 12));
+    const y = speakerY - 56;
+    const right = x + width;
+    const bottom = y + 36;
+    const tail = Math.max(x + 18, Math.min(right - 18, speakerX));
+
+    c.beginPath();
+    c.moveTo(x + 10, y);
+    c.lineTo(right - 10, y);
+    c.quadraticCurveTo(right, y, right, y + 10);
+    c.lineTo(right, bottom - 10);
+    c.quadraticCurveTo(right, bottom, right - 10, bottom);
+    c.lineTo(tail + 7, bottom);
+    c.lineTo(Math.max(6, Math.min(this.w - 6, speakerX - 4)), speakerY - 5);
+    c.lineTo(tail - 7, bottom);
+    c.lineTo(x + 10, bottom);
+    c.quadraticCurveTo(x, bottom, x, bottom - 10);
+    c.lineTo(x, y + 10);
+    c.quadraticCurveTo(x, y, x + 10, y);
+    c.closePath();
+    this.paint('#fffdf7', INK, 2.5);
+    this.text(message, x + width / 2, y + 18, 16, INK, 'center', null);
   }
 
   farmerPose(x, y, farmer = {}, scale = 1, holding = false) {
@@ -931,6 +960,8 @@ export class Renderer {
       this.round(left + offset, 54, width - 4, 10, 4, ['#dd8d4d', '#ae6350', '#d58873'][i]);
     }
     this.headIcon(left + progress * barWidth, 60, true);
+    const farmerProgress = Math.max(0, Math.min(1, state.farmer.x / world.totalLength));
+    this.farmerHeadIcon(left + farmerProgress * barWidth, 76);
     this.text(currentStage.name, this.w / 2, 87, 19);
     this.text(`DIST ${state.distance} m`, this.w - 48, 41, 23, CREAM, 'right');
     for (let i = 0; i < this.config.turkey.LIVES; i++) {
@@ -947,6 +978,11 @@ export class Renderer {
     }
     if (state.flashSpotted > 0) this.text('SPOTTED!', this.w / 2, 231, 46, '#ff6854');
     else if (turkey.hidden) this.drawHiddenLabel(state);
+    if (state.closeCallUntil > state.time) {
+      const x = Math.max(108, Math.min(this.w - 108, turkey.x - state.cameraX));
+      const y = Math.max(134, turkey.hitbox().headY - (turkey.hidden ? 113 : 44));
+      this.drawFeedbackLabel('CLOSE CALL! +25', x, y, state.frozen ? 22 : 27, '#ffd787');
+    }
   }
 
   drawHiddenLabel({ turkey, world, cameraX, shotCover }) {
@@ -955,12 +991,16 @@ export class Renderer {
     const anchor = cover ? cover.x + cover.w / 2 : turkey.x;
     const x = Math.max(68, Math.min(this.w - 68, anchor - cameraX));
     const y = Math.min(headY, cover ? this.ground - cover.h : headY) - 24;
+    this.drawFeedbackLabel('HIDDEN', x, y, 28, '#d6ebae');
+  }
+
+  drawFeedbackLabel(label, x, y, size, fill) {
     const c = this.ctx;
     c.save();
     c.shadowColor = '#211a1db8';
     c.shadowBlur = 7;
     c.shadowOffsetY = 3;
-    this.text('HIDDEN', x, y, 28, '#d6ebae', 'center', '#302724');
+    this.text(label, x, y, size, fill, 'center', '#302724');
     c.restore();
   }
 
@@ -983,6 +1023,26 @@ export class Renderer {
       filled ? GOLD : '#84605b', INK);
     this.oval(x + 3, y - 3, 2, 2, INK);
     if (filled) this.oval(x + 7, y + 6, 2.5, 3.5, '#bc483b');
+  }
+
+  farmerHeadIcon(x, y) {
+    const c = this.ctx;
+    c.beginPath();
+    c.moveTo(x - 12, y);
+    c.quadraticCurveTo(x - 12, y - 2, x - 6, y - 2);
+    c.lineTo(x - 5, y - 6);
+    c.quadraticCurveTo(x - 5, y - 8, x - 2, y - 8);
+    c.lineTo(x + 3, y - 8);
+    c.quadraticCurveTo(x + 5, y - 8, x + 6, y - 6);
+    c.lineTo(x + 7, y - 2);
+    c.quadraticCurveTo(x + 12, y - 2, x + 12, y);
+    c.quadraticCurveTo(x + 12, y + 2, x + 8, y + 2);
+    c.lineTo(x - 8, y + 2);
+    c.quadraticCurveTo(x - 12, y + 2, x - 12, y);
+    c.closePath();
+    this.paint('#f4bb66', '#fff1cd', 3.5);
+    this.paint(null, INK, 1.2);
+    this.line([[x - 5.5, y - 2.75], [x + 6.1, y - 2.75]], '#854639', 2.2);
   }
 
   leafFrame() {
@@ -1045,6 +1105,7 @@ export class Renderer {
     this.shadow(608, this.ground + 8, 156, 17, true);
     this.farmerPose(530, this.ground, { facing: 1 }, 2.28 * CHARACTER_SCALE, true);
     this.turkeyPose(686, this.ground - 328, { airborne: true, despair: true }, 1.94 * CHARACTER_SCALE, Math.PI);
+    this.speechBubble('GOTCHA!', 487, 279, 112);
     this.leafFrame();
     this.endPrompt(state);
     this.endImpact(impact);
