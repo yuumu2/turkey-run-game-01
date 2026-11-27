@@ -668,6 +668,7 @@ export class Renderer {
     const c = this.ctx;
     const phase = (farmer.runPhase ?? 0) * TAU;
     const running = !holding && farmer.state !== undefined;
+    const searching = farmer.state === 'search';
     const lunging = farmer.state === 'lunge';
     const stride = running ? Math.sin(phase) * 25 : 0;
     c.save();
@@ -694,35 +695,70 @@ export class Renderer {
       c.translate(0, -Math.abs(Math.cos(phase)) * 2);
     }
 
-    const arm = (side, handX, handY) => {
-      const elbowX = handX * 0.55 - 5;
-      const elbowY = holding ? -94 : lunging && side > 0 ? -74 : -63;
-      const path = [[side * 14, -83], [elbowX, elbowY], [handX, handY]];
-      this.line(path, '#572d31', 15);
-      this.line(path, side < 0 ? '#873b3a' : '#bc513e', 11);
-      this.line([[handX * 0.83 + elbowX * 0.17, handY * 0.83 + elbowY * 0.17],
-        [handX, handY]], '#e87956', 8);
-      this.oval(handX, handY, 6, 6, side < 0 ? '#c3815e' : '#edae79', 0, '#784b3d');
+    const arm = (side) => {
+      const near = side === 1;
+      const shoulder = near ? [-6, -85] : [-11, -86];
+      const swing = -side * (9 + stride) / 34 * 0.78;
+      const forearmAngle = -0.22 - swing * 0.36;
+      let elbow = [shoulder[0] + Math.sin(swing) * 22, shoulder[1] + Math.cos(swing) * 22];
+      let wrist = [elbow[0] + Math.cos(forearmAngle) * 18, elbow[1] + Math.sin(forearmAngle) * 18];
+      if (near && holding) {
+        elbow = [24, -92];
+        wrist = [53, -104];
+      } else if (lunging) {
+        elbow = near ? [22, -88] : [-29, -74];
+        wrist = near ? [47, -85] : [-38, -70];
+      } else if (searching && near) {
+        elbow = [13, -78];
+        wrist = [24, -107];
+      } else if (!running || searching) {
+        elbow = near ? [-17, -65] : [-19, -66];
+        wrist = near ? [-3, -56] : [-12, -56];
+      }
+
+      this.line([shoulder, elbow, wrist], '#572d31', 14);
+      this.line([shoulder, elbow, wrist], near ? '#bc513e' : '#873b3a', 10);
+      this.line([[shoulder[0] + 1, shoulder[1] - 2],
+        [(shoulder[0] + elbow[0]) / 2 + 1, (shoulder[1] + elbow[1]) / 2 - 2]],
+        near ? '#df6b4f' : '#a34e43', 2.4);
+      c.save();
+      c.translate(...wrist);
+      c.rotate(Math.atan2(wrist[1] - elbow[1], wrist[0] - elbow[0]));
+      this.round(-4, -4.5, 12, 9, 3.1, near ? '#edae79' : '#c3815e', '#784b3d');
+      this.line([[3, -2], [6, -2]], near ? '#f7c498' : '#da9970', 1.3);
+      c.restore();
     };
-    arm(-1, lunging ? -31 : -16 + stride * 0.83, -57 - Math.max(0, stride) * 0.45);
-    this.round(-23, -96, 46, 59, 12, '#b6493d', '#583036');
-    c.save();
+    arm(-1);
+
+    // The back tapers into the hip while the chest projects ahead of it.
+    const chest = running ? 4 : 0;
     c.beginPath();
-    c.roundRect(-22, -95, 44, 57, 11);
+    c.moveTo(-18, -42);
+    c.quadraticCurveTo(-21, -61, -17, -79);
+    c.quadraticCurveTo(-15, -93, -5 + chest, -95);
+    c.quadraticCurveTo(7 + chest, -98, 16 + chest, -89);
+    c.quadraticCurveTo(23 + chest, -79, 17, -65);
+    c.quadraticCurveTo(12, -55, 15, -43);
+    c.closePath();
+    this.paint('#b6493d', '#583036');
+    c.save();
     c.clip();
-    this.rect(-23, -95, 15, 57, '#813739');
-    this.rect(11, -95, 12, 57, '#dd6a4d');
+    this.poly([[-22, -95], [-9, -95], [-10, -72], [-7, -53], [-12, -38], [-23, -38]], '#813739');
+    this.poly([[6, -97], [27, -97], [27, -72], [17, -65], [16, -81]], '#dd6a4d');
     for (let i = -15; i <= 20; i += 12) this.rect(i, -95, 4, 57, '#792d386e');
-    for (let i = -88; i < -37; i += 11) this.rect(-23, i, 46, 4, '#792d3888');
+    for (let i = -88; i < -37; i += 11) this.rect(-23, i, 51, 4, '#792d3888');
     c.restore();
-    this.round(-17, -75, 34, 37, 6, '#517890', '#354456');
-    this.round(-16, -73, 9, 32, 4, '#3d5a74');
-    this.line([[-17, -94], [-11, -74]], '#3e6079', 6);
-    this.line([[16, -94], [10, -74]], '#648da2', 6);
-    this.round(-6, -67, 14, 11, 3, '#7199ab', '#44637d');
-    this.line([[-6, -50], [11, -50]], '#63879e', 2);
-    this.oval(-10, -72, 2.3, 2.3, GOLD);
-    this.oval(10, -72, 2.3, 2.3, GOLD);
+
+    // One strap crosses the visible shoulder into the narrow bib at the chest.
+    this.poly([[-19, -57], [-4, -59], [5, -64], [11 + chest, -76], [19 + chest, -75],
+      [15, -60], [16, -44], [9, -38], [-14, -38], [-19, -44]], '#517890', '#354456');
+    this.poly([[-18, -55], [-10, -56], [-9, -48], [-5, -39], [-14, -39], [-18, -44]], '#3d5a74');
+    this.line([[2 + chest, -93], [10 + chest, -88], [13 + chest, -75]], '#354456', 7);
+    this.line([[2 + chest, -93], [10 + chest, -88], [13 + chest, -75]], '#648da2', 4.5);
+    this.oval(13 + chest, -74, 2.2, 2.2, GOLD);
+    this.poly([[-12, -53], [0, -54], [-3, -45], [-8, -43], [-11, -46]], '#7199ab', '#44637d');
+    this.line([[-10, -51], [-2, -52]], '#8bb0bc', 1.3);
+    arm(1);
 
     this.oval(6, -104, 19, 21, '#d08c63', 0, '#633d36');
     this.oval(9, -109, 15, 13, '#efb381');
@@ -730,11 +766,9 @@ export class Renderer {
     this.oval(24, -101, 6.5, 5.2, '#eaa978', 0, '#885943');
     this.oval(25, -102.4, 3.4, 1.6, '#f7c498');
     this.oval(18, -111, 3.6, 3.5, '#ffebce');
-    this.oval(10, -112, 3.5, 3.4, '#ffebce');
     this.oval(19, -111, 1.5, 2.1, INK);
-    this.oval(11, -112, 1.6, 2.1, INK);
-    const brow = farmer.state === 'search' ? -3 : 2;
-    this.line([[7, -117 - brow], [16, -114], [20, -115 - brow * 0.5]], '#59352f', 2.7);
+    const brow = searching ? -3 : 2;
+    this.line([[13, -116 - brow], [18, -115], [21, -115 - brow * 0.5]], '#59352f', 2.7);
     this.poly([[11, -99], [17, -101], [23, -98], [22, -95], [17, -97],
       [12, -95], [8, -96]], '#653e33');
     this.line([[13, -92], [20, -93]], '#77483c', 2);
@@ -745,8 +779,6 @@ export class Renderer {
     this.rect(-15, -122, 14, 2, '#be784c');
     this.oval(3, -115, 33, 6, '#b77948', -0.06, '#704b34');
     this.oval(2, -117, 31, 4, '#f3c477', -0.06);
-    arm(1, holding ? 57 : lunging ? 52 : 24 - stride * 0.75,
-      holding ? -105 : lunging ? -83 : -63 + Math.min(0, stride) * 0.48);
     c.restore();
   }
 
