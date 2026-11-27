@@ -361,8 +361,18 @@ export class Renderer {
     }
     this.drawEffects(state.cameraX);
     if (dashing) this.speedLines(state.turkey, state.cameraX);
-    this.drawTurkey(state.turkey, state.turkey.x - state.cameraX, state.farmer.state === 'lunge');
-    if (cover) this.drawItem(cover, cover.x - state.cameraX);
+    const turkeyX = state.turkey.x - state.cameraX;
+    if (cover) {
+      const c = this.ctx;
+      c.save();
+      c.translate(turkeyX - 4, this.ground - 7);
+      c.scale(CHARACTER_SCALE, CHARACTER_SCALE);
+      this.turkeyTail(-15, true, '#59342c');
+      c.restore();
+      this.drawItem(cover, cover.x - state.cameraX);
+    } else {
+      this.drawTurkey(state.turkey, turkeyX, state.farmer.state === 'lunge');
+    }
     this.drawFarmer(state.farmer, state.farmer.x - state.cameraX);
     if (!state.frozen || state.currentStage.id === 'farm') this.leaves(state.cameraX);
     this.endImpact(impact);
@@ -501,7 +511,7 @@ export class Renderer {
     const { w, h, kind } = item;
     const g = this.ground;
     const y = g - h;
-    if (kind !== 'corn') this.shadow(x + w / 2, g + 3, w * 0.57, 6, true);
+    if (kind !== 'corn' && kind !== 'knife') this.shadow(x + w / 2, g + 3, w * 0.57, 6, true);
     switch (kind) {
       case 'fence':
         this.round(x, y + 22, w, 11, 3, '#4d2c24');
@@ -566,6 +576,7 @@ export class Renderer {
         const [blade, block] = item.parts;
         const top = g - blade.bottom - blade.h;
         const bx = x + block.xOffset;
+        this.shadow(bx + block.w / 2, g + 3, block.w * 0.72, 6, true);
         this.round(bx, y + 14, block.w, h - 14, 5, '#955237', '#532f2c');
         this.rect(bx + 4, y + 22, block.w - 8, 6, '#cf8a53');
         this.line([[bx + 11, y + 32], [bx + 14, g - 7]], '#b6764d', 3);
@@ -649,6 +660,22 @@ export class Renderer {
     c.restore();
   }
 
+  turkeyTail(bodyY, duck, ink) {
+    const c = this.ctx;
+    const featherColors = ['#9b3f37', '#b65236', '#ce663d', '#dc8749', '#edaa60'];
+    for (let i = 0; i < featherColors.length; i++) {
+      const length = 40 + i * 2;
+      c.save();
+      c.translate(duck ? -22 : -16, bodyY + 2);
+      c.rotate(-1.39 + i * (duck ? 0.22 : 0.29) + (duck ? 0.13 : 0));
+      this.oval(0, -length * 0.55, 8, length * 0.51, featherColors[i], 0, ink);
+      this.oval(-2, -length * 0.71, 3, length * 0.23, '#ffcb8248');
+      this.line([[0, -10], [-1, -length + 6]], '#713d36', 1.4);
+      this.line([[-4, -length + 11], [0, -length + 15], [5, -length + 10]], '#ffcd8f85', 1.4);
+      c.restore();
+    }
+  }
+
   turkeyPose(x, y, turkey = {}, scale = 1, angle = 0) {
     const c = this.ctx;
     const duck = turkey.ducking;
@@ -671,18 +698,7 @@ export class Renderer {
       this.line([[foot + 2, -2 - lift], [foot + 6, -5 - lift]], '#dc8646', 1.6);
     }
 
-    const featherColors = ['#9b3f37', '#b65236', '#ce663d', '#dc8749', '#edaa60'];
-    for (let i = 0; i < featherColors.length; i++) {
-      const length = 40 + i * 2;
-      c.save();
-      c.translate(duck ? -22 : -16, bodyY + 2);
-      c.rotate(-1.39 + i * (duck ? 0.22 : 0.29) + (duck ? 0.13 : 0));
-      this.oval(0, -length * 0.55, 8, length * 0.51, featherColors[i], 0, ink);
-      this.oval(-2, -length * 0.71, 3, length * 0.23, '#ffcb8248');
-      this.line([[0, -10], [-1, -length + 6]], '#713d36', 1.4);
-      this.line([[-4, -length + 11], [0, -length + 15], [5, -length + 10]], '#ffcd8f85', 1.4);
-      c.restore();
-    }
+    this.turkeyTail(bodyY, duck, ink);
 
     const bodyWidth = duck ? 29 : 25;
     const bodyHeight = duck ? 12 : 18;
@@ -930,7 +946,22 @@ export class Renderer {
       c.restore();
     }
     if (state.flashSpotted > 0) this.text('SPOTTED!', this.w / 2, 231, 46, '#ff6854');
-    else if (turkey.hidden) this.text('HIDDEN', this.w / 2, 231, 38, '#a3db80');
+    else if (turkey.hidden) this.drawHiddenLabel(state);
+  }
+
+  drawHiddenLabel({ turkey, world, cameraX, shotCover }) {
+    const { x0, x1, headY } = turkey.hitbox();
+    const cover = shotCover ?? itemsInRange(world, x0, x1).find((item) => turkey.isHidden([item]));
+    const anchor = cover ? cover.x + cover.w / 2 : turkey.x;
+    const x = Math.max(68, Math.min(this.w - 68, anchor - cameraX));
+    const y = Math.min(headY, cover ? this.ground - cover.h : headY) - 24;
+    const c = this.ctx;
+    c.save();
+    c.shadowColor = '#211a1db8';
+    c.shadowBlur = 7;
+    c.shadowOffsetY = 3;
+    this.text('HIDDEN', x, y, 28, '#d6ebae', 'center', '#302724');
+    c.restore();
   }
 
   drawFarmerProximity(distance) {
