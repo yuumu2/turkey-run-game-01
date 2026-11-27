@@ -8,6 +8,7 @@ export function stageShot(name, game) {
   game.frozen = true;
   game.time = 0.72;
   delete game.shotDustX;
+  delete game.shotCover;
 
   switch (name) {
     case 'farm':
@@ -16,22 +17,23 @@ export function stageShot(name, game) {
         ['fence', 300], ['haybale', 560],
       ]);
       break;
-    case 'barn':
-      stageRun(game, 1, 3600, 1152, [
-        ['crate', -340], ['haybale', -20], ['pitchfork', 300],
-      ]);
-      game.turkey.y = 70;
-      game.turkey.vy = 180;
-      game.shotDustX = game.turkey.x - 85;
+    case 'barn': {
+      stageRun(game, 1, 3600, 1152, [['crate', -235], ['haybale', -40]], 565);
+      game.shotCover = game.world.items.find((item) => item.staged && item.kind === 'haybale');
+      game.turkey.ducking = true;
+      game.turkey.hidden = game.turkey.isHidden([game.shotCover]);
+      game.farmer.x = game.turkey.x - 435;
+      game.farmer.state = 'search';
       break;
+    }
     case 'kitchen': {
-      const ovenOffset = 330;
-      stageRun(game, 2, 3570, 1961, [['oven', ovenOffset], ['knife', 640]], 334);
+      const ovenShift = 30;
+      stageRun(game, 2, 3570, 1961, [['oven', 330 + ovenShift], ['knife', 640]], 334);
       const oven = game.world.items.find((item) => item.staged && item.kind === 'oven');
-      game.turkey.x = oven.x + oven.w / 2;
+      game.turkey.x = oven.x + oven.w / 2 - ovenShift;
       game.turkey.y = oven.h + 28;
       game.turkey.vy = 280;
-      game.farmer.x = game.turkey.x - 126;
+      game.farmer.x = game.turkey.x - 138;
       game.farmer.state = 'lunge';
       game.farmer.lungeRemaining = 0.22;
       game.distance = Math.floor(game.turkey.x / CONFIG.game.PIXELS_PER_METRE);

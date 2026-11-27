@@ -88,9 +88,9 @@ export class Renderer {
     return gradient;
   }
 
-  text(value, x, y, size, fill = CREAM, align = 'center', outline = INK) {
+  text(value, x, y, size, fill = CREAM, align = 'center', outline = INK, weight = 900) {
     const c = this.ctx;
-    c.font = `900 ${size}px system-ui, sans-serif`;
+    c.font = `${weight} ${size}px system-ui, sans-serif`;
     c.textAlign = align;
     c.textBaseline = 'middle';
     c.lineJoin = 'round';
@@ -110,14 +110,14 @@ export class Renderer {
     }
   }
 
-  shadow(x, y, w, h = 6) {
+  shadow(x, y, w, h = 6, strong = false) {
     const c = this.ctx;
     c.save();
     c.translate(x, y);
     c.scale(w, h);
     const shade = c.createRadialGradient(0, 0, 0, 0, 0, 1);
-    shade.addColorStop(0, '#24171861');
-    shade.addColorStop(0.5, '#24171839');
+    shade.addColorStop(0, strong ? '#24171886' : '#24171861');
+    shade.addColorStop(0.5, strong ? '#24171850' : '#24171839');
     shade.addColorStop(1, '#24171800');
     this.oval(0, 0, 1, 1, shade);
     c.restore();
@@ -355,12 +355,14 @@ export class Renderer {
     const dashing = this.trackRunner(state);
     const impact = this.beginImpact();
     this.background(state.currentStage.id, state.cameraX);
+    const cover = state.frozen ? state.shotCover : undefined;
     for (const item of itemsInRange(state.world, state.cameraX - 25, state.cameraX + this.w + 25)) {
-      if (!item.collected) this.drawItem(item, item.x - state.cameraX);
+      if (item !== cover && !item.collected) this.drawItem(item, item.x - state.cameraX);
     }
     this.drawEffects(state.cameraX);
     if (dashing) this.speedLines(state.turkey, state.cameraX);
     this.drawTurkey(state.turkey, state.turkey.x - state.cameraX, state.farmer.state === 'lunge');
+    if (cover) this.drawItem(cover, cover.x - state.cameraX);
     this.drawFarmer(state.farmer, state.farmer.x - state.cameraX);
     if (!state.frozen || state.currentStage.id === 'farm') this.leaves(state.cameraX);
     this.endImpact(impact);
@@ -499,7 +501,7 @@ export class Renderer {
     const { w, h, kind } = item;
     const g = this.ground;
     const y = g - h;
-    if (kind !== 'corn') this.shadow(x + w / 2, g + 3, w * 0.57);
+    if (kind !== 'corn') this.shadow(x + w / 2, g + 3, w * 0.57, 6, true);
     switch (kind) {
       case 'fence':
         this.round(x, y + 22, w, 11, 3, '#4d2c24');
@@ -628,7 +630,7 @@ export class Renderer {
 
   drawTurkey(turkey, x, alarmed) {
     const lift = turkey.y ?? 0;
-    this.shadow(x, this.ground + 4, Math.max(9, 33 - lift * 0.11) * CHARACTER_SCALE, 8);
+    this.shadow(x, this.ground + 4, Math.max(9, 33 - lift * 0.11) * CHARACTER_SCALE, 8, true);
     this.turkeyPose(x, this.ground - lift, { ...turkey, airborne: lift > 0, alarmed }, CHARACTER_SCALE);
   }
 
@@ -738,7 +740,7 @@ export class Renderer {
   }
 
   drawFarmer(farmer, x) {
-    this.shadow(x, this.ground + 3, 39 * CHARACTER_SCALE, 8);
+    this.shadow(x, this.ground + 3, 39 * CHARACTER_SCALE, 8, true);
     this.farmerPose(x, this.ground, farmer, CHARACTER_SCALE);
     if (farmer.state === 'search') this.text('?', x, this.ground - 145 * CHARACTER_SCALE, 37, GOLD);
   }
@@ -994,9 +996,10 @@ export class Renderer {
       'Press ENTER or tap to start', true);
   }
 
-  bottomPrompt(details, prompt, blink = false) {
+  bottomPrompt(details, prompt, blink = false, emphasizeDetails = false) {
     this.round(215, 626, 850, 73, 14, '#35262ceF', '#b47a55');
-    this.text(details, 640, 647, 17, '#ead2b5');
+    if (emphasizeDetails) this.text(details, 640, 647, 22, CREAM, 'center', INK, 1000);
+    else this.text(details, 640, 647, 17, '#ead2b5');
     if (!blink || this.time % 1.3 < 1.03) this.text(prompt, 640, 677, 23, GOLD);
   }
 
@@ -1008,7 +1011,7 @@ export class Renderer {
     this.rect(0, 0, this.w, this.h, '#291b2b89');
     this.text('CAUGHT!', 640, 122, 112, '#ff8062');
     this.text('The dinner is back on...', 640, 194, 31);
-    this.shadow(608, this.ground + 8, 156, 17);
+    this.shadow(608, this.ground + 8, 156, 17, true);
     this.farmerPose(530, this.ground, { facing: 1 }, 2.28 * CHARACTER_SCALE, true);
     this.turkeyPose(686, this.ground - 328, { airborne: true, despair: true }, 1.94 * CHARACTER_SCALE, Math.PI);
     this.leafFrame();
@@ -1021,7 +1024,7 @@ export class Renderer {
     this.background('farm', 176, true);
     this.text('ESCAPED!', 640, 150, 110, GOLD);
     this.text('One turkey, officially pardoned.', 640, 226, 32);
-    this.shadow(465, this.ground + 8, 161, 15);
+    this.shadow(465, this.ground + 8, 161, 15, true);
     this.turkeyPose(470, this.ground + 1, { celebrate: true }, 3.55 * CHARACTER_SCALE);
     const c = this.ctx;
     c.save();
@@ -1041,6 +1044,6 @@ export class Renderer {
 
   endPrompt(state) {
     this.bottomPrompt(`FINAL SCORE ${String(state.score).padStart(6, '0')}    ·    DIST ${state.distance} m`,
-      'Press ENTER to run again');
+      'Press ENTER to run again', false, true);
   }
 }
