@@ -74,7 +74,8 @@ function hitsObstacle(item, box) {
       overlaps(box, item.x + xOffset, w, GROUND_Y - bottom - h, GROUND_Y - bottom));
   }
   if (box.ducking && isHidingProp(item)) return false;
-  return overlaps(box, item.x, item.w, GROUND_Y - item.h, GROUND_Y);
+  const height = item.kind === 'oven' ? CONFIG.spawning.OVEN_COLLISION_HEIGHT : item.h;
+  return overlaps(box, item.x, item.w, GROUND_Y - height, GROUND_Y);
 }
 
 function resolveItems() {

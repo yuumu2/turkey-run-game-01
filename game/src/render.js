@@ -8,6 +8,7 @@ const LEAF_COLORS = ['#c74731', '#e77835', '#ffbf55'];
 const STAGE_LABELS = ['FARM', 'BARN', 'KITCHEN'];
 const HIT_SECONDS = 0.2;
 const DUST_INTERVAL = 0.095;
+const CHARACTER_SCALE = 1.25;
 
 function fraction(value) {
   return value - Math.floor(value);
@@ -110,7 +111,16 @@ export class Renderer {
   }
 
   shadow(x, y, w, h = 6) {
-    this.oval(x, y, w, h, '#281b1c38');
+    const c = this.ctx;
+    c.save();
+    c.translate(x, y);
+    c.scale(w, h);
+    const shade = c.createRadialGradient(0, 0, 0, 0, 0, 1);
+    shade.addColorStop(0, '#24171861');
+    shade.addColorStop(0.5, '#24171839');
+    shade.addColorStop(1, '#24171800');
+    this.oval(0, 0, 1, 1, shade);
+    c.restore();
   }
 
   background(id, camera, sunrise = false) {
@@ -139,6 +149,10 @@ export class Renderer {
       this.oval(x + 103, y, 45, 15, '#fff2d16e');
       this.oval(x + 65, y + 1, 31, 12, '#fff2d14d');
     });
+    this.repeat(camera * 0.19, 690, (x, i) => {
+      const height = 210 + this.decorSample(i, 12) * 35;
+      this.oval(x + 160, g + 9, 450, height, '#dab098');
+    });
     this.repeat(camera * 0.28, 435, (x, i) => {
       const height = 165 + 50 * this.decorSample(i, 3);
       this.oval(x + 50, g + 27, 324, height + 22, '#b6907d');
@@ -165,6 +179,7 @@ export class Renderer {
       this.line([[x, g - 44], [x + 82, g - 44]], '#a17655', 3);
       this.line([[x, g - 67], [x, g - 33]], '#8b604b', 5);
     });
+    this.rect(0, g - 27, this.w, 27, this.gradient(g - 27, g, '#dcab7100', '#ecba7938'));
   }
 
   barn(camera, palette) {
@@ -176,6 +191,7 @@ export class Renderer {
       this.line([[x + 16, 182], [x + 20, 343], [x + 17, 415]], '#e2a17429');
     });
     this.repeat(camera * 0.55, 618, (x, i) => {
+      this.rect(x + 44, 100, 10, g - 100, '#38242230');
       this.rect(x + 8, 0, 32, g, '#52342f');
       this.rect(x + 39, 0, 5, g, '#a1664b');
       this.poly([[x + 44, 146], [x + 127, 90], [x + 145, 90],
@@ -188,6 +204,10 @@ export class Renderer {
         this.gradient(280, g - 55, '#f4cd8e49', '#f4cd8e00'));
       this.poly([[x + 191, 283], [x + 242, 283], [x + 536, g - 58], [x + 456, g - 58]],
         this.gradient(280, g - 58, '#ffdb9f37', '#ffdb9f00'));
+      for (let mote = 0; mote < 4; mote++) {
+        const sample = this.decorSample(i * 4 + mote, 15);
+        this.oval(x + 199 + mote * 29, 325 + mote * 26 + sample * 15, 1 + sample, 1, '#ffe1ab62');
+      }
 
       const ropeX = x + 370 + this.decorSample(i, 6) * 73;
       this.line([[ropeX, 101], [ropeX, 175]], '#644137', 5);
@@ -240,7 +260,7 @@ export class Renderer {
           this.rect(left + 2, shelf - height, 20, 5, row ? '#8e705d' : '#ad886e');
         }
         this.round(x + 264, shelf, 202, 10, 3, row ? '#8a6859' : '#a68268');
-        this.rect(x + 270, shelf + 10, 189, 6, '#946b5833');
+        this.rect(x + 270, shelf + 10, 189, 16, this.gradient(shelf + 10, shelf + 26, '#80544350', '#80544300'));
       }
 
       this.line([[x + 494, 227], [x + 723, 227]], '#ab8672', 6);
@@ -289,6 +309,7 @@ export class Renderer {
           this.rect(x, y, 78, 40, row === 0 ? '#8d6155' : '#9c7260');
           this.rect(x + 1, y + 1, 76, 38, tones[(col + row) & 1][Math.floor(sample * 3)]);
           this.rect(x + 2, y + 2, 74, 2, '#ffe7bd25');
+          this.rect(x + 3, y + 36, 72, 2, '#9e69542a');
         }
       });
       this.rect(0, g, this.w, 38, this.gradient(g, g + 38, '#62423d40', '#62423d00'));
@@ -318,6 +339,7 @@ export class Renderer {
         this.oval(x + 31, y, 12 + sample * 16, 1.5 + sample * 2, '#5e463629');
         this.oval(x + 44, y + 6, 2.5 + sample * 2, 1.5, '#c69b6d75');
         this.oval(x + 57, y - 2, 2, 1.25, '#6148325e');
+        this.line([[x + 30, y + 1], [x + 38 + sample * 9, y + 1]], '#dfad7327', 1.3);
         if (sample > 0.34) {
           const grass = x + 9 + sample * 10;
           this.line([[grass - 5, g + 3], [grass, g + 12], [grass + 2, g + 4]], '#75643d', 2);
@@ -513,7 +535,7 @@ export class Renderer {
         this.line(middleTine, '#4b4041', 4);
         break;
       }
-      case 'oven':
+      case 'oven': {
         this.round(x + w - 40, y, 23, 31, 4, '#34313a', INK);
         this.round(x + w - 44, y, 31, 7, 2, '#68636a');
         this.round(x, y + 22, w, h - 22, 7, '#37333c', INK);
@@ -522,11 +544,22 @@ export class Renderer {
         this.oval(x + w - 15, y + 37, 4, 4, '#ff7243');
         this.round(x + 10, y + 53, w - 20, h - 62, 5, '#241f28', '#7d6a64');
         this.round(x + 39, y + 57, w - 78, 5, 2, '#a99a8e');
-        this.oval(x + w / 2, g - 34, 22, 19, '#793636', 0, '#bb825d');
-        this.oval(x + w / 2, g - 31, 16, 12, '#e55b37');
-        this.poly([[x + 54, g - 26], [x + 62, g - 44], [x + 66, g - 34],
-          [x + 73, g - 47], [x + 79, g - 26]], '#ffb54c');
+        const cx = x + w / 2;
+        const cy = g - 33;
+        const flicker = Math.sin(this.time * 14 + item.x * 0.07);
+        const heat = this.ctx.createRadialGradient(cx, cy + 5, 3, cx, cy, 36);
+        heat.addColorStop(0, '#ffbb6277');
+        heat.addColorStop(1, '#f86a2a00');
+        this.oval(cx, cy, 37, 28, heat);
+        this.oval(cx, cy, 22, 19, this.gradient(cy - 19, cy + 19, '#532832', '#dc592f'), 0, '#d49664');
+        this.oval(cx, cy + 9, 15, 5, '#ff883c');
+        this.poly([[cx - 13, cy + 10], [cx - 11, cy + 1], [cx - 6 + flicker * 2, cy - 9],
+          [cx - 3, cy], [cx + 5, cy - 13 - flicker * 3], [cx + 9, cy - 2], [cx + 13, cy + 10]],
+        '#ffb04b');
+        this.poly([[cx - 6, cy + 10], [cx - 1, cy + 2], [cx + 3 + flicker, cy - 3],
+          [cx + 7, cy + 10]], '#fff0a1');
         break;
+      }
       case 'knife': {
         const [blade, block] = item.parts;
         const top = g - blade.bottom - blade.h;
@@ -539,6 +572,12 @@ export class Renderer {
           [x + 21, g - blade.bottom], [x + 6, g - blade.bottom - 7]],
           this.gradient(top, g - blade.bottom, '#888fa1', '#fff3df'), '#554e58');
         this.line([[x + 7, top + 4], [bx - 3, top + 4]], '#faf3e6', 2);
+        const edgeY = g - blade.bottom;
+        this.line([[x + 22, edgeY - 1], [bx - 4, edgeY - 1]], '#fff9de', 2.4);
+        const glintX = x + 42;
+        this.poly([[glintX - 8, edgeY - 4], [glintX - 1, edgeY - 5], [glintX + 1, edgeY - 12],
+          [glintX + 3, edgeY - 5], [glintX + 10, edgeY - 4], [glintX + 3, edgeY - 2],
+          [glintX + 1, edgeY + 4], [glintX - 1, edgeY - 2]], '#fff9e7');
         this.round(bx - 3, top - 3, block.w + 3, 15, 4, '#302a35', INK);
         this.oval(bx + 10, top + 4, 2, 2, '#d3bb9d');
         this.oval(bx + 30, top + 4, 2, 2, '#d3bb9d');
@@ -589,8 +628,8 @@ export class Renderer {
 
   drawTurkey(turkey, x, alarmed) {
     const lift = turkey.y ?? 0;
-    this.shadow(x, this.ground + 4, Math.max(9, 33 - lift * 0.11));
-    this.turkeyPose(x, this.ground - lift, { ...turkey, airborne: lift > 0, alarmed });
+    this.shadow(x, this.ground + 4, Math.max(9, 33 - lift * 0.11) * CHARACTER_SCALE, 8);
+    this.turkeyPose(x, this.ground - lift, { ...turkey, airborne: lift > 0, alarmed }, CHARACTER_SCALE);
   }
 
   sweatDrop(x, y, scale = 1) {
@@ -654,7 +693,7 @@ export class Renderer {
     c.restore();
     this.oval(0, bodyY, bodyWidth, bodyHeight, null, 0, ink);
 
-    const wingAngle = turkey.celebrate ? 0.86 : turkey.airborne
+    const wingAngle = turkey.despair ? (angle ? 0.95 : -0.95) : turkey.celebrate ? 0.86 : turkey.airborne
       ? Math.sin(this.time * 23 + phase) * 0.73 - (turkey.vy > 0 ? 0.1 : 0.35)
       : -0.22 + Math.cos(phase) * 0.09;
     c.save();
@@ -666,8 +705,8 @@ export class Renderer {
     c.restore();
 
     const headX = duck ? 31 : 22;
-    const headY = duck ? -18 : -50;
-    this.oval(duck ? 20 : 16, duck ? -15 : -36, 8, duck ? 8 : 14, '#d9a579',
+    const headY = turkey.despair ? -57 : duck ? -18 : -50;
+    this.oval(duck ? 20 : 16, duck ? -15 : turkey.despair ? -40 : -36, 8, duck ? 8 : 14, '#d9a579',
       duck ? Math.PI / 2 : 0.29, ink);
     this.oval(headX, headY, 11, 10, '#f7d4a3', 0, ink);
     this.oval(headX + 4, headY + 9, 4.5, 7, '#b63a3a', -0.29, '#793232');
@@ -678,7 +717,12 @@ export class Renderer {
       '#c97139');
     this.line([[headX + 4, headY - 8], [headX + 10, headY - 5], [headX + 11, headY - 1]],
       '#b6383a', 3.8);
-    if (turkey.alarmed) {
+    if (turkey.despair) {
+      this.oval(headX + 1, headY - 2, 4.8, 4.3, '#fff8df', 0, ink);
+      this.oval(headX + 2, headY - 1, 2.2, 2.6, '#332229');
+      this.line([[headX - 3, headY - 5], [headX + 4, headY - 7]], ink, 1.6);
+      this.oval(headX - 2, headY - 8, 2, 3.6, '#a9d8e9', 0.2, '#6b8199');
+    } else if (turkey.alarmed) {
       this.oval(headX + 1, headY - 2.5, 5.5, 6.2, '#fff8df', 0, ink);
       this.oval(headX + 2.5, headY - 2.5, 2.5, 3.4, '#332229');
       this.oval(headX + 3.1, headY - 3.9, 1, 1, '#fff8df');
@@ -694,9 +738,9 @@ export class Renderer {
   }
 
   drawFarmer(farmer, x) {
-    this.shadow(x, this.ground + 3, 39);
-    this.farmerPose(x, this.ground, farmer);
-    if (farmer.state === 'search') this.text('?', x, this.ground - 145, 37, GOLD);
+    this.shadow(x, this.ground + 3, 39 * CHARACTER_SCALE, 8);
+    this.farmerPose(x, this.ground, farmer, CHARACTER_SCALE);
+    if (farmer.state === 'search') this.text('?', x, this.ground - 145 * CHARACTER_SCALE, 37, GOLD);
   }
 
   farmerPose(x, y, farmer = {}, scale = 1, holding = false) {
@@ -812,7 +856,12 @@ export class Renderer {
     this.line([[13, -116 - brow], [18, -115], [21, -115 - brow * 0.5]], '#59352f', 2.7);
     this.poly([[11, -99], [17, -101], [23, -98], [22, -95], [17, -97],
       [12, -95], [8, -96]], '#653e33');
-    this.line([[13, -92], [20, -93]], '#77483c', 2);
+    if (holding) {
+      this.poly([[11, -94], [24, -96], [21, -89], [16, -88]], '#67382f', '#633d36');
+      this.line([[13, -93], [22, -94]], '#fff0ca', 2.2);
+    } else {
+      this.line([[13, -92], [20, -93]], '#77483c', 2);
+    }
 
     this.round(-18, -137, 39, 25, 7, '#dca054', '#704b34');
     this.round(-15, -135, 27, 12, 5, '#f4c978');
@@ -852,6 +901,7 @@ export class Renderer {
     this.round(22, 17, this.w - 44, 91, 18, '#39272beF', '#a96c4d');
     this.text('SCORE', 48, 40, 15, '#f1bb7d', 'left');
     this.text(String(state.score).padStart(6, '0'), 48, 72, 32, CREAM, 'left');
+    this.drawFarmerProximity(Math.abs(turkey.x - state.farmer.x));
     const left = 391;
     const barWidth = 498;
     const progress = turkey.x / world.totalLength;
@@ -879,6 +929,19 @@ export class Renderer {
     }
     if (state.flashSpotted > 0) this.text('SPOTTED!', this.w / 2, 231, 46, '#ff6854');
     else if (turkey.hidden) this.text('HIDDEN', this.w / 2, 231, 38, '#a3db80');
+  }
+
+  drawFarmerProximity(distance) {
+    const calmDistance = 700;
+    const hotDistance = 140;
+    const fill = Math.max(0, Math.min(1, (calmDistance - distance) / (calmDistance - hotDistance)));
+    const hot = distance <= hotDistance;
+    const x = 188;
+    const width = 166;
+    this.text('FARMER', x, 40, 15, hot ? '#ff997f' : '#f1bb7d', 'left');
+    this.round(x, 54, width, 13, 5, '#291c22', '#8e5d4b');
+    if (fill > 0) this.round(x + 2, 56, (width - 4) * fill, 9, 4, hot ? '#f96250' : '#f1ab50');
+    if (hot) this.text('RIGHT BEHIND YOU!', x, 84, 14, '#ff9b86', 'left');
   }
 
   headIcon(x, y, filled) {
@@ -919,14 +982,14 @@ export class Renderer {
     this.background('farm', 28);
     this.leaves(28);
     const phase = this.time * 1.45;
-    this.shadow(327, this.ground + 9, 87, 11);
-    this.farmerPose(327, this.ground + 5, { facing: 1, state: 'chase', runPhase: phase }, 1.95);
-    this.shadow(755, this.ground + 8, 121, 13);
-    this.turkeyPose(755, this.ground + 3, { runPhase: phase + 0.28 }, 3.15);
+    this.shadow(200, this.ground + 9, 104, 14);
+    this.farmerPose(200, this.ground + 5, { facing: 1, state: 'chase', runPhase: phase }, 1.95 * CHARACTER_SCALE);
+    this.shadow(755, this.ground + 8, 151, 15);
+    this.turkeyPose(755, this.ground + 3, { runPhase: phase + 0.28 }, 3.15 * CHARACTER_SCALE);
     this.leafFrame();
-    this.text('PARDON!', 640, 201, 139, '#ffa64e');
-    this.text('The Great Turkey Escape', 640, 293, 43);
-    this.text('The farmer wants dinner. You ARE dinner. RUN!', 640, 345, 23);
+    this.text('PARDON!', 640, 163, 139, '#ffa64e');
+    this.text('The Great Turkey Escape', 640, 250, 43);
+    this.text('The farmer wants dinner. You ARE dinner. RUN!', 640, 295, 23);
     this.bottomPrompt('← → speed · ↑ / SPACE jump · ↓ duck & hide · ENTER start',
       'Press ENTER or tap to start', true);
   }
@@ -943,11 +1006,11 @@ export class Renderer {
     const impact = this.beginImpact();
     this.background('kitchen', 184);
     this.rect(0, 0, this.w, this.h, '#291b2b89');
-    this.text('CAUGHT!', 640, 184, 112, '#ff8062');
-    this.text('The dinner is back on...', 640, 272, 31);
-    this.shadow(623, this.ground + 8, 140, 14);
-    this.farmerPose(574, this.ground, { facing: 1 }, 2.28, true);
-    this.turkeyPose(706, this.ground - 258, { airborne: true }, 1.94, Math.PI);
+    this.text('CAUGHT!', 640, 122, 112, '#ff8062');
+    this.text('The dinner is back on...', 640, 194, 31);
+    this.shadow(608, this.ground + 8, 156, 17);
+    this.farmerPose(530, this.ground, { facing: 1 }, 2.28 * CHARACTER_SCALE, true);
+    this.turkeyPose(686, this.ground - 328, { airborne: true, despair: true }, 1.94 * CHARACTER_SCALE, Math.PI);
     this.leafFrame();
     this.endPrompt(state);
     this.endImpact(impact);
@@ -956,10 +1019,10 @@ export class Renderer {
   drawEscaped(state) {
     this.time = state.time;
     this.background('farm', 176, true);
-    this.text('ESCAPED!', 640, 183, 110, GOLD);
-    this.text('One turkey, officially pardoned.', 640, 270, 32);
-    this.shadow(465, this.ground + 8, 135, 13);
-    this.turkeyPose(470, this.ground + 1, { celebrate: true }, 3.55);
+    this.text('ESCAPED!', 640, 150, 110, GOLD);
+    this.text('One turkey, officially pardoned.', 640, 226, 32);
+    this.shadow(465, this.ground + 8, 161, 15);
+    this.turkeyPose(470, this.ground + 1, { celebrate: true }, 3.55 * CHARACTER_SCALE);
     const c = this.ctx;
     c.save();
     c.translate(805, 479);
