@@ -28,7 +28,7 @@ export const CONFIG = {
 
   // Farmer movement, pursuit timing, and distance thresholds.
   farmer: {
-    CHASE_SPEED: [300, 320, 345],
+    CHASE_SPEED: [330, 352, 379.5],
     BURST_SPEED: 470,
     BURST_SECONDS: 1.2,
     BURST_EVERY_SECONDS: 6,
@@ -54,7 +54,7 @@ export const CONFIG = {
 
   // Obstacle densities follow the stage order. Corn value is in points.
   spawning: {
-    OBSTACLES_PER_1000PX: [2.2, 2.6, 3.0],
+    OBSTACLES_PER_1000PX: [2.31, 2.73, 3.15],
     CORN_VALUE: 25,
     START_MARGIN: 500,
     END_MARGIN: 460,
