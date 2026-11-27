@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PARDON! — The Great Turkey Escape</title>
+  <style>
+    html { color-scheme: dark; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      background: #25191b;
+    }
+    canvas {
+      display: block;
+      max-width: 100%;
+      height: auto;
+      width: min(1280px, calc(100vh * 16 / 9));
+      image-rendering: auto;
+      box-shadow: 0 12px 55px #130c0c;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="game" width="1280" height="720" aria-label="Pardon! The Great Turkey Escape"></canvas>
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>
