@@ -10,6 +10,7 @@ export function stageShot(name, game) {
   game.closeCallUntil = 0;
   delete game.shotDustX;
   delete game.shotCover;
+  delete game.shotFarmerMeterDistance;
 
   switch (name) {
     case 'farm':
@@ -23,8 +24,9 @@ export function stageShot(name, game) {
       game.shotCover = game.world.items.find((item) => item.staged && item.kind === 'haybale');
       game.turkey.ducking = true;
       game.turkey.hidden = game.turkey.isHidden([game.shotCover]);
-      game.farmer.x = game.turkey.x - 435;
+      game.farmer.x = game.shotCover.x - 83;
       game.farmer.state = 'search';
+      game.shotFarmerMeterDistance = 620;
       break;
     }
     case 'kitchen': {

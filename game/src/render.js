@@ -219,6 +219,12 @@ export class Renderer {
       this.oval(x + 467, g - 83, 58, 17, '#956747');
       this.oval(x + 530, g - 89, 52, 20, '#9c6e4a');
       this.line([[x + 476, g - 87], [x + 505, g - 89]], '#ac7b54', 2);
+      this.round(x + 72, g - 186, 98, 7, 3, '#6d493c');
+      this.oval(x + 97, g - 201, 18, 15, '#a47753');
+      this.oval(x + 138, g - 206, 21, 20, '#a87a55');
+      this.line([[x + 128, g - 219], [x + 147, g - 219]], '#8b5e47', 2);
+      this.line([[x + 568, 190], [x + 565, 245]], '#674238', 5);
+      this.oval(x + 565, 252, 9, 13, '#6d483b', 0.08);
     });
     this.rect(0, 94, this.w, 22, '#593831');
     this.rect(0, 94, this.w, 4, '#a67152');
@@ -230,9 +236,11 @@ export class Renderer {
     this.rect(0, 0, this.w, g, this.gradient(0, g, '#f6e4bf', palette.sky));
     this.repeat(camera * 0.3, 86, (x, col) => {
       for (let y = 106, row = 0; y < g; y += 62, row++) {
-        const tone = this.decorSample(col, row) > 0.52 ? '#fff3db57' : '#f6dfbc50';
+        const sample = this.decorSample(col, row);
+        const tone = sample < 0.08 ? '#b5886225' : sample > 0.52 ? '#fff3db57' : '#f6dfbc50';
         this.round(x + 2, y + 2, 82, 58, 5, tone, '#d5b295');
         this.rect(x + 6, y + 5, 73, 2, '#fff3d84f');
+        if (row === 2 && col % 11 === 4) this.tileCrack(x + 53, y + 16, '#92664f68');
       }
     });
     this.repeat(camera * 0.55, 760, (x) => {
@@ -292,6 +300,11 @@ export class Renderer {
     return ((key ^ (key >>> 16)) >>> 0) / 0x100000000;
   }
 
+  tileCrack(x, y, color) {
+    this.line([[x, y], [x - 4, y + 5], [x - 2, y + 10], [x - 9, y + 16]], color, 1);
+    this.line([[x - 2, y + 10], [x + 3, y + 13]], color, 1);
+  }
+
   floor(id, camera, palette) {
     const c = this.ctx;
     const g = this.ground;
@@ -310,6 +323,8 @@ export class Renderer {
           this.rect(x + 1, y + 1, 76, 38, tones[(col + row) & 1][Math.floor(sample * 3)]);
           this.rect(x + 2, y + 2, 74, 2, '#ffe7bd25');
           this.rect(x + 3, y + 36, 72, 2, '#9e69542a');
+          if (sample < 0.09) this.rect(x + 2, y + 4, 74, 32, '#70463c22');
+          if (row === 1 && col % 13 === 5) this.tileCrack(x + 38, y + 10, '#774a426e');
         }
       });
       this.rect(0, g, this.w, 38, this.gradient(g, g + 38, '#62423d40', '#62423d00'));
@@ -548,6 +563,7 @@ export class Renderer {
         break;
       }
       case 'oven': {
+        this.ovenSteam(x + w - 28, y, item.x);
         this.round(x + w - 40, y, 23, 31, 4, '#34313a', INK);
         this.round(x + w - 44, y, 31, 7, 2, '#68636a');
         this.round(x, y + 22, w, h - 22, 7, '#37333c', INK);
@@ -625,6 +641,23 @@ export class Renderer {
         this.text('PARDON!', x + w / 2, y + 23, 26, GOLD);
         break;
     }
+  }
+
+  ovenSteam(x, y, worldX) {
+    const c = this.ctx;
+    c.save();
+    for (let i = 0; i < 3; i++) {
+      const phase = fraction(this.time * 0.67 + i / 3 + worldX * 0.013);
+      const drift = Math.sin(phase * Math.PI * 2 + i) * 4;
+      const height = y - 5 - phase * 28;
+      c.globalAlpha = Math.sin(Math.PI * phase) * 0.54;
+      c.beginPath();
+      c.moveTo(x + drift, height);
+      c.quadraticCurveTo(x + drift + 7, height - 5, x + drift + 2, height - 10);
+      c.lineCap = 'round';
+      this.paint(null, '#fff3dc', 2.6);
+    }
+    c.restore();
   }
 
   hay(x, ground, w, h) {
@@ -948,7 +981,8 @@ export class Renderer {
     this.round(22, 17, this.w - 44, 91, 18, '#39272beF', '#a96c4d');
     this.text('SCORE', 48, 40, 15, '#f1bb7d', 'left');
     this.text(String(state.score).padStart(6, '0'), 48, 72, 32, CREAM, 'left');
-    this.drawFarmerProximity(Math.abs(turkey.x - state.farmer.x));
+    const farmerDistance = Math.abs(turkey.x - state.farmer.x);
+    this.drawFarmerProximity((state.frozen ? state.shotFarmerMeterDistance : undefined) ?? farmerDistance);
     const left = 391;
     const barWidth = 498;
     const progress = turkey.x / world.totalLength;
@@ -959,10 +993,12 @@ export class Renderer {
         i === currentStage.stageIndex ? GOLD : '#e4c4a9');
       this.round(left + offset, 54, width - 4, 10, 4, ['#dd8d4d', '#ae6350', '#d58873'][i]);
     }
+    const farmerLaneY = 80;
+    this.line([[left, farmerLaneY], [left + barWidth, farmerLaneY]], '#8c6656', 2);
     this.headIcon(left + progress * barWidth, 60, true);
     const farmerProgress = Math.max(0, Math.min(1, state.farmer.x / world.totalLength));
-    this.farmerHeadIcon(left + farmerProgress * barWidth, 76);
-    this.text(currentStage.name, this.w / 2, 87, 19);
+    this.farmerHeadIcon(left + farmerProgress * barWidth, farmerLaneY + 1);
+    this.text(currentStage.name, this.w / 2, 98, 16);
     this.text(`DIST ${state.distance} m`, this.w - 48, 41, 23, CREAM, 'right');
     for (let i = 0; i < this.config.turkey.LIVES; i++) {
       this.headIcon(this.w - 119 + i * 30, 76, i < turkey.lives);
@@ -1083,7 +1119,7 @@ export class Renderer {
     this.text('PARDON!', 640, 163, 139, '#ffa64e');
     this.text('The Great Turkey Escape', 640, 250, 43);
     this.text('The farmer wants dinner. You ARE dinner. RUN!', 640, 295, 23);
-    this.bottomPrompt('← → speed · ↑ / SPACE jump · ↓ duck & hide · ENTER start',
+    this.bottomPrompt('← / → change speed   ·   ↑ / SPACE jump   ·   ↓ duck & hide',
       'Press ENTER or tap to start', true);
   }
 
