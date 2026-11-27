@@ -6,6 +6,12 @@ const GOLD = '#ffc15b';
 const TAU = Math.PI * 2;
 const LEAF_COLORS = ['#c74731', '#e77835', '#ffbf55'];
 const STAGE_LABELS = ['FARM', 'BARN', 'KITCHEN'];
+const HIT_SECONDS = 0.2;
+const DUST_INTERVAL = 0.095;
+
+function fraction(value) {
+  return value - Math.floor(value);
+}
 
 export class Renderer {
   constructor(ctx, config) {
@@ -15,6 +21,10 @@ export class Renderer {
     this.h = config.view.H;
     this.ground = config.view.GROUND_Y;
     this.time = 0;
+    this.effects = [];
+    this.previousRunner = null;
+    this.lastDust = -Infinity;
+    this.lastHit = -Infinity;
   }
 
   rect(x, y, w, h, fill) {
@@ -114,143 +124,344 @@ export class Renderer {
 
   farm(camera, palette, sunrise) {
     const g = this.ground;
-    this.rect(0, 0, this.w, g, this.gradient(0, g, sunrise ? '#eb826a' : palette.sky, '#fff0b9'));
-    const sunX = sunrise ? 965 : 1008;
-    const sunY = sunrise ? 320 : 172;
-    this.oval(sunX, sunY, 93, 93, '#fff2ba4d');
-    this.oval(sunX, sunY, 70, 70, '#fff5bf');
-    this.repeat(camera * 0.3, 420, (x, i) => {
-      const y = 170 + Math.cos(i * 2.2) * 84;
-      this.oval(x + 135, y, 77, 11, '#fff8db75');
-      this.oval(x, g + 28, 330, 221 + Math.cos(i * 1.6) * 21, '#b68a72');
-      this.oval(x + 156, g + 40, 280, 177 + Math.sin(i * 1.2) * 30, '#d4a568');
+    this.rect(0, 0, this.w, g,
+      this.gradient(0, g, sunrise ? '#e89a78' : palette.sky, '#ffe3aa'));
+    const sunX = (sunrise ? 960 : 1040) - camera * 0.015;
+    const sunY = sunrise ? 333 : 161;
+    const glow = this.ctx.createRadialGradient(sunX, sunY, 31, sunX, sunY, 145);
+    glow.addColorStop(0, '#fff5cba0');
+    glow.addColorStop(1, '#fff5cb00');
+    this.oval(sunX, sunY, 145, 145, glow);
+    this.oval(sunX, sunY, 55, 55, '#ffefbc');
+    this.repeat(camera * 0.15, 455, (x, i) => {
+      const y = 158 + this.decorSample(i, 2) * 134;
+      this.oval(x + 88, y + 8, 83, 12, '#fff2d16e');
+      this.oval(x + 103, y, 45, 15, '#fff2d16e');
+      this.oval(x + 65, y + 1, 31, 12, '#fff2d14d');
     });
-    this.repeat(camera * 0.6, 950, (x) => {
-      this.rect(x + 275, g - 165, 147, 95, '#a74737');
-      this.poly([[x + 256, g - 157], [x + 347, g - 224], [x + 438, g - 157]], '#753d36');
-      this.rect(x + 324, g - 138, 49, 67, '#78372b');
-      this.line([[x + 325, g - 133], [x + 372, g - 73]], '#d77d59', 4);
-      this.line([[x + 371, g - 133], [x + 325, g - 73]], '#d77d59', 4);
+    this.repeat(camera * 0.28, 435, (x, i) => {
+      const height = 165 + 50 * this.decorSample(i, 3);
+      this.oval(x + 50, g + 27, 324, height + 22, '#b6907d');
+      this.oval(x + 214, g + 43, 291, height - 23, '#c5a179');
     });
-    this.repeat(camera * 0.6, 225, (x, i) => {
-      const y = g - 130 - Math.cos(i * 2.7) * 32;
-      this.line([[x, g - 40], [x + 7, y - 30]], '#794737', 12);
-      this.line([[x + 3, y + 40], [x - 29, y - 9]], '#794737', 5);
-      const color = i % 2 ? '#bb4e39' : palette.accent;
-      this.oval(x - 18, y, 42, 38, color);
-      this.oval(x + 25, y - 5, 45, 39, color);
-      this.oval(x + 3, y - 29, 46, 39, i % 2 ? '#d86b40' : '#f3a044');
+    this.repeat(camera * 0.43, 930, (x) => {
+      this.rect(x + 279, g - 147, 139, 74, '#a75d4c');
+      this.poly([[x + 265, g - 144], [x + 298, g - 180], [x + 346, g - 199],
+        [x + 393, g - 180], [x + 431, g - 144]], '#805044');
+      this.rect(x + 324, g - 127, 45, 54, '#835246');
+      this.line([[x + 325, g - 124], [x + 368, g - 76]], '#b9795d', 3);
+      this.line([[x + 369, g - 124], [x + 325, g - 76]], '#b9795d', 3);
     });
-    this.rect(0, g - 52, this.w, 52, '#a87943');
-    this.repeat(camera * 0.6, 85, (x) => {
-      this.line([[x, g - 34], [x + 85, g - 33]], '#88573a', 6);
-      this.line([[x, g - 53], [x, g - 9]], '#774830', 8);
-      this.line([[x, g - 54], [x, g - 31]], '#cb8e57', 3);
+    this.repeat(camera * 0.54, 285, (x, i) => {
+      const top = g - 132 - this.decorSample(i, 1) * 46;
+      this.line([[x + 9, g - 74], [x + 10, top]], '#815d4d', 9);
+      this.oval(x - 9, top + 10, 32, 30, i % 2 ? '#af6a57' : '#c48152');
+      this.oval(x + 29, top + 8, 32, 30, i % 2 ? '#b9755d' : '#cd8d56');
+      this.oval(x + 9, top - 10, 36, 31, i % 2 ? '#c17f65' : '#d39863');
+    });
+    this.rect(0, g - 77, this.w, 77, this.gradient(g - 77, g, '#b48a5a', '#c49a66'));
+    this.repeat(camera * 0.62, 82, (x) => {
+      this.line([[x, g - 55], [x + 82, g - 55]], '#986d50', 4);
+      this.line([[x, g - 44], [x + 82, g - 44]], '#a17655', 3);
+      this.line([[x, g - 67], [x, g - 33]], '#8b604b', 5);
     });
   }
 
   barn(camera, palette) {
     const g = this.ground;
-    this.rect(0, 0, this.w, g, this.gradient(0, g, '#513238', palette.sky));
-    this.repeat(camera * 0.3, 57, (x, i) => {
-      this.rect(x + 1, 0, 54, g, i % 3 ? '#e6a16e15' : '#2f1b2a22');
-      this.rect(x, 0, 2, g, '#301b2b66');
-      this.line([[x + 14, 193], [x + 18, 365]], '#f6b98718');
+    this.rect(0, 0, this.w, g, this.gradient(0, g, '#4b302c', palette.sky));
+    this.repeat(camera * 0.33, 63, (x, i) => {
+      this.rect(x + 1, 0, 62, g, this.decorSample(i, 4) > 0.5 ? '#edaf7511' : '#2a202018');
+      this.rect(x, 0, 2, g, '#37232858');
+      this.line([[x + 16, 182], [x + 20, 343], [x + 17, 415]], '#e2a17429');
     });
-    this.repeat(camera * 0.6, 565, (x) => {
-      this.rect(x + 8, 0, 27, g, '#55302c');
-      this.rect(x + 35, 0, 6, g, '#c37c50');
-      this.round(x + 132, 146, 125, 137, 4, '#ffd58c', '#42242a');
-      this.line([[x + 194, 148], [x + 194, 282]], '#7c4731', 7);
-      this.line([[x + 134, 217], [x + 255, 217]], '#7c4731', 7);
-      this.poly([[x + 133, 283], [x + 257, 283], [x + 478, g], [x + 207, g]],
-        this.gradient(280, g, '#ffdf8647', '#ffd77600'));
-      this.round(x + 360, 263, 145, 12, 4, '#623731');
-      this.line([[x + 391, 275], [x + 388, 339]], '#482932', 7);
-      this.oval(x + 388, 351, 13, 19, '#482932');
-      this.line([[x + 463, 274], [x + 463, 339], [x + 482, 339]], '#482932', 7);
-      this.oval(x + 449, g - 15, 78, 23, '#a7683c');
-      this.oval(x + 501, g - 10, 61, 19, '#c28848');
+    this.repeat(camera * 0.55, 618, (x, i) => {
+      this.rect(x + 8, 0, 32, g, '#52342f');
+      this.rect(x + 39, 0, 5, g, '#a1664b');
+      this.poly([[x + 44, 146], [x + 127, 90], [x + 145, 90],
+        [x + 44, 168]], '#664138');
+      this.round(x + 124, 152, 125, 136, 4, '#e6b67c', '#674235');
+      this.rect(x + 132, 160, 109, 120, this.gradient(160, 280, '#edc48e', '#d6a26b'));
+      this.line([[x + 186, 153], [x + 186, 286]], '#82583f', 7);
+      this.line([[x + 126, 217], [x + 247, 217]], '#82583f', 7);
+      this.poly([[x + 134, 283], [x + 183, 283], [x + 438, g - 55], [x + 310, g - 55]],
+        this.gradient(280, g - 55, '#f4cd8e49', '#f4cd8e00'));
+      this.poly([[x + 191, 283], [x + 242, 283], [x + 536, g - 58], [x + 456, g - 58]],
+        this.gradient(280, g - 58, '#ffdb9f37', '#ffdb9f00'));
+
+      const ropeX = x + 370 + this.decorSample(i, 6) * 73;
+      this.line([[ropeX, 101], [ropeX, 175]], '#644137', 5);
+      this.oval(ropeX, 183, 15, 15, '#593931', 0, '#a36d50');
+      this.oval(ropeX, 183, 4, 4, '#96624b');
+      this.line([[ropeX - 11, 185], [ropeX - 13, 255], [ropeX - 9, 275],
+        [ropeX + 4, 277], [ropeX + 12, 265], [ropeX + 11, 199]], '#644238', 4);
+      this.oval(x + 500, g - 69, 102, 13, '#866048');
+      this.oval(x + 467, g - 83, 58, 17, '#956747');
+      this.oval(x + 530, g - 89, 52, 20, '#9c6e4a');
+      this.line([[x + 476, g - 87], [x + 505, g - 89]], '#ac7b54', 2);
     });
-    this.rect(0, 93, this.w, 23, '#57312e');
-    this.rect(0, 93, this.w, 4, '#c38154');
-    this.rect(0, g - 15, this.w, 15, '#633a32');
+    this.rect(0, 94, this.w, 22, '#593831');
+    this.rect(0, 94, this.w, 4, '#a67152');
+    this.rect(0, g - 15, this.w, 15, '#654239');
   }
 
   kitchen(camera, palette) {
     const g = this.ground;
-    this.rect(0, 0, this.w, g, this.gradient(0, g, '#fff1d0', palette.sky));
-    this.repeat(camera * 0.3, 86, (x) => {
-      for (let y = 105; y < g; y += 62) {
-        this.round(x + 2, y + 2, 82, 58, 5, '#fff5de70', '#d8aa8c');
+    this.rect(0, 0, this.w, g, this.gradient(0, g, '#f6e4bf', palette.sky));
+    this.repeat(camera * 0.3, 86, (x, col) => {
+      for (let y = 106, row = 0; y < g; y += 62, row++) {
+        const tone = this.decorSample(col, row) > 0.52 ? '#fff3db57' : '#f6dfbc50';
+        this.round(x + 2, y + 2, 82, 58, 5, tone, '#d5b295');
+        this.rect(x + 6, y + 5, 73, 2, '#fff3d84f');
       }
     });
-    this.repeat(camera * 0.6, 570, (x) => {
-      this.round(x + 39, 205, 239, 13, 4, '#875348');
-      for (let i = 0; i < 4; i++) {
-        const left = x + 62 + i * 48;
-        const height = i % 2 ? 50 : 39;
-        this.round(left, 204 - height, 28, height, 6, ['#c76144', '#dfa860', '#8a8e60', '#b87661'][i], '#875348');
-        this.rect(left + 2, 200 - height, 24, 8, '#714840');
-        this.rect(left + 6, 186, 16, 9, CREAM);
+    this.repeat(camera * 0.55, 760, (x) => {
+      this.round(x + 46, 151, 175, 153, 5, '#bd946e', '#a87b61');
+      this.rect(x + 54, 159, 159, 134, this.gradient(159, 293, '#b8c0ab', '#ede0a8'));
+      this.line([[x + 133, 158], [x + 133, 293]], '#b19273', 4);
+      this.line([[x + 54, 225], [x + 212, 225]], '#b19273', 4);
+      for (const side of [-1, 1]) {
+        const edge = x + 133 + side * 81;
+        this.poly([[edge, 158], [edge - side * 58, 158], [edge - side * 41, 213],
+          [edge - side * 25, 246], [edge - side * 43, 288], [edge, 288]], '#bc806d');
+        this.line([[edge - side * 35, 162], [edge - side * 27, 207],
+          [edge - side * 16, 241]], '#dba18a', 3);
+        this.line([[edge, 247], [edge - side * 27, 247]], '#956452', 4);
       }
-      this.line([[x + 330, 230], [x + 515, 230]], '#946252', 8);
-      for (let i = 0; i < 3; i++) {
-        const left = x + 360 + i * 64;
-        this.line([[left, 230], [left, 279 + i * 9]], '#5c4850', 6);
-        this.oval(left, 293 + i * 9, 24 + i * 2, 20 + i * 2, '#73545a', 0, '#523c45');
-        this.oval(left, 292 + i * 9, 15 + i * 2, 12 + i * 2, '#8d6969');
+      this.round(x + 43, 293, 182, 9, 3, '#af886e');
+
+      for (let row = 0; row < 2; row++) {
+        const shelf = 209 + row * 71;
+        for (let i = 0; i < 4; i++) {
+          const left = x + 284 + i * 42;
+          const height = 28 + (i % 2) * 11;
+          this.round(left, shelf - height, 24, height, 5,
+            row ? '#ab8e72' : ['#b9826a', '#c7a67b', '#9b9c7c', '#b48775'][i], '#aa856b');
+          this.rect(left + 2, shelf - height, 20, 5, row ? '#8e705d' : '#ad886e');
+        }
+        this.round(x + 264, shelf, 202, 10, 3, row ? '#8a6859' : '#a68268');
+        this.rect(x + 270, shelf + 10, 189, 6, '#946b5833');
       }
-      this.round(x + 70, g - 145, 401, 144, 5, '#aa6353');
-      for (let i = 0; i < 4; i++) {
-        this.round(x + 80 + i * 97, g - 124, 91, 105, 6, '#c47c66', '#8d5348');
-        this.round(x + 112 + i * 97, g - 110, 26, 5, 2, '#f8cf92');
+
+      this.line([[x + 494, 227], [x + 723, 227]], '#ab8672', 6);
+      for (let i = 0; i < 2; i++) {
+        const left = x + 532 + i * 64;
+        this.line([[left, 229], [left, 270 + i * 12]], '#79666a', 4);
+        this.oval(left, 284 + i * 12, 21 + i * 3, 17 + i * 2, '#8a7473', 0, '#746064');
+        this.oval(left, 284 + i * 12, 14, 10, '#a28982');
       }
-      this.round(x + 58, g - 153, 427, 21, 5, '#fff0cc', '#986552');
+      this.line([[x + 656, 229], [x + 656, 271]], '#79666a', 4);
+      this.oval(x + 656, 280, 9, 12, '#927972');
+      this.line([[x + 696, 229], [x + 696, 267]], '#79666a', 4);
+      this.round(x + 686, 267, 20, 24, 4, '#8b7571');
+      this.line([[x + 696, 271], [x + 696, 286]], '#d0ad94', 2);
+
+      this.round(x + 57, g - 139, 597, 138, 5, '#ae7966');
+      for (let i = 0; i < 5; i++) {
+        this.round(x + 67 + i * 115, g - 120, 106, 103, 5, '#b98570', '#a97563');
+        this.round(x + 103 + i * 115, g - 105, 25, 4, 2, '#d8ac83');
+      }
+      this.round(x + 48, g - 147, 612, 18, 4, '#ddbea0', '#b39278');
     });
-    this.rect(0, 94, this.w, 8, palette.accent);
+    this.rect(0, 94, this.w, 7, '#bd846f');
+  }
+
+  decorSample(column, row) {
+    let key = Math.imul(column, 0x1f123bb5) ^ Math.imul(row + 1, 0x5f356495);
+    key = Math.imul(key ^ (key >>> 16), 0x45d9f3b);
+    return ((key ^ (key >>> 16)) >>> 0) / 0x100000000;
   }
 
   floor(id, camera, palette) {
+    const c = this.ctx;
     const g = this.ground;
+    c.save();
+    c.beginPath();
+    c.rect(0, g, this.w, this.h - g);
+    c.clip();
     this.rect(0, g, this.w, this.h - g, palette.ground);
     if (id === 'kitchen') {
+      const tones = [['#b98272', '#be8876', '#c08b79'], ['#d8ab8b', '#dcb091', '#dfb596']];
       this.repeat(camera, 78, (x, col) => {
         for (let row = 0; row < 3; row++) {
-          this.rect(x, g + row * 40, 78, 40, (col + row) % 2 ? '#8e4f4e' : '#e1ad8c');
+          const y = g + row * 40;
+          const sample = this.decorSample(col, row);
+          this.rect(x, y, 78, 40, row === 0 ? '#8d6155' : '#9c7260');
+          this.rect(x + 1, y + 1, 76, 38, tones[(col + row) & 1][Math.floor(sample * 3)]);
+          this.rect(x + 2, y + 2, 74, 2, '#ffe7bd25');
         }
       });
-      this.rect(0, g, this.w, 4, '#f5cf9c');
+      this.rect(0, g, this.w, 38, this.gradient(g, g + 38, '#62423d40', '#62423d00'));
     } else if (id === 'barn') {
+      const tones = ['#634138', '#68443a', '#6d493d', '#714b3e'];
       for (let row = 0; row < 4; row++) {
         const y = g + row * 35;
-        this.rect(0, y, this.w, 3, '#35232a');
-        this.repeat(camera + row * 85, 255, (x) => {
-          this.rect(x, y, 3, 35, '#35232a');
-          this.line([[x + 27, y + 13], [x + 126, y + 14]], '#936046', 2);
-          this.oval(x + 9, y + 9, 2, 2, '#35232a');
+        this.repeat(camera + row * 85, 255, (x, col) => {
+          const sample = this.decorSample(col, row);
+          this.rect(x + 1, y + 1, 253, 33, tones[Math.floor(sample * tones.length)]);
+          this.rect(x, y, 255, 2, '#4c352e');
+          this.rect(x, y + 2, 2, 32, '#51372e');
+          this.line([[x + 17, y + 9], [x + 79 + sample * 61, y + 9]], '#9f74522e', 2);
+          if (sample > 0.38) {
+            const strawX = x + 35 + sample * 158;
+            this.line([[strawX, y + 24], [strawX + 10, y + 21]], '#bd925668', 1.3);
+            this.line([[strawX - 4, y + 22], [strawX + 5, y + 28]], '#bd925653', 1.2);
+          }
         });
       }
     } else {
-      this.rect(0, g, this.w, 8, '#c49155');
-      this.repeat(camera, 66, (x, i) => {
-        const y = g + 11 + 62 * Math.abs(Math.sin(i * 18));
-        this.oval(x + 23, y, 8, 2, '#ab8056');
-        this.line([[x - 5, g + 7], [x - 13, g - 7], [x - 4, g + 2],
-          [x + 3, g - 11], [x + 2, g + 7]], '#7a6939', 3);
+      this.rect(0, g, this.w, this.h - g, this.gradient(g, this.h, '#a37952', palette.ground));
+      this.rect(0, g, this.w, 3, '#bc905b');
+      this.repeat(camera, 69, (x, col) => {
+        const sample = this.decorSample(col, 7);
+        const y = g + 22 + this.decorSample(col, 8) * 84;
+        this.oval(x + 31, y, 12 + sample * 16, 1.5 + sample * 2, '#5e463629');
+        this.oval(x + 44, y + 6, 2.5 + sample * 2, 1.5, '#c69b6d75');
+        this.oval(x + 57, y - 2, 2, 1.25, '#6148325e');
+        if (sample > 0.34) {
+          const grass = x + 9 + sample * 10;
+          this.line([[grass - 5, g + 3], [grass, g + 12], [grass + 2, g + 4]], '#75643d', 2);
+          this.line([[grass + 1, g + 12], [grass + 8, g + 5]], '#9a7c47', 1.5);
+        }
       });
     }
+    c.restore();
   }
 
   drawScene(state) {
     this.time = state.time;
+    const dashing = this.trackRunner(state);
+    const impact = this.beginImpact();
     this.background(state.currentStage.id, state.cameraX);
     for (const item of itemsInRange(state.world, state.cameraX - 25, state.cameraX + this.w + 25)) {
       if (!item.collected) this.drawItem(item, item.x - state.cameraX);
     }
+    this.drawEffects(state.cameraX);
+    if (dashing) this.speedLines(state.turkey, state.cameraX);
     this.drawTurkey(state.turkey, state.turkey.x - state.cameraX);
     this.drawFarmer(state.farmer, state.farmer.x - state.cameraX);
-    this.leaves(state.particles);
+    this.leaves(state.cameraX);
+    this.endImpact(impact);
+  }
+
+  trackRunner(state, animate = true) {
+    const { turkey, time, world, frozen } = state;
+    const previous = this.previousRunner;
+    const sameRun = previous?.world === world && time >= previous.time;
+    if (!sameRun) {
+      this.effects = [];
+      this.lastDust = -Infinity;
+      this.lastHit = -Infinity;
+    }
+    this.previousRunner = { world, time, x: turkey.x, y: turkey.y, lives: turkey.lives };
+    if (frozen || !sameRun) return false;
+    if (turkey.lives < previous.lives) this.lastHit = time;
+    if (!animate) return false;
+
+    const distance = turkey.x - previous.x;
+    if (turkey.y === 0 && previous.y > 0) {
+      this.spawnDust(turkey.x, true);
+    } else if (turkey.y === 0 && distance > 0 && time - this.lastDust >= DUST_INTERVAL) {
+      this.spawnDust(turkey.x, false);
+    }
+    const { CRUISE_SPEED, DASH_SPEED } = this.config.turkey;
+    const elapsed = time - previous.time;
+    return elapsed > 0 && distance / elapsed > (CRUISE_SPEED + DASH_SPEED) / 2;
+  }
+
+  spawnDust(x, landing) {
+    this.lastDust = this.time;
+    const count = landing ? 6 : 2;
+    for (let i = 0; i < count; i++) {
+      const spread = i - (count - 1) / 2;
+      this.effects.push({
+        kind: 'dust', x: x - 8 + spread * 5, y: this.ground - 3,
+        vx: landing ? spread * 21 : -28 - i * 13,
+        vy: -12 - i * 3, size: landing ? 7 + i % 3 * 2 : 4 + i * 2,
+        time: this.time, duration: landing ? 0.43 : 0.29,
+      });
+    }
+  }
+
+  spawnCornSparkles(item, time) {
+    for (let i = 0; i < 5; i++) {
+      const angle = i * TAU / 5 - 0.6;
+      this.effects.push({
+        kind: 'sparkle', x: item.x + item.w / 2, y: this.ground - item.y,
+        vx: Math.cos(angle) * 62, vy: Math.sin(angle) * 56 - 16,
+        size: i % 2 ? 3 : 6, time, duration: 0.36 + i * 0.035,
+      });
+    }
+  }
+
+  drawEffects(camera) {
+    const c = this.ctx;
+    this.effects = this.effects.filter((particle) => this.time - particle.time < particle.duration);
+    c.save();
+    for (const particle of this.effects) {
+      const age = this.time - particle.time;
+      const remaining = 1 - age / particle.duration;
+      const x = particle.x - camera + particle.vx * age;
+      const y = particle.y + particle.vy * age;
+      if (particle.kind === 'dust') {
+        const size = particle.size * (1 + age * 2);
+        const glow = c.createRadialGradient(x, y, 0, x, y, size);
+        glow.addColorStop(0, '#ffe3b5');
+        glow.addColorStop(1, '#ffe3b500');
+        c.globalAlpha = remaining * 0.72;
+        this.oval(x, y, size, size * 0.7, glow);
+      } else {
+        const size = particle.size * (0.45 + remaining * 0.55);
+        c.globalAlpha = remaining;
+        this.poly([[x, y - size], [x + size * 0.38, y - size * 0.25], [x + size, y],
+          [x + size * 0.38, y + size * 0.25], [x, y + size],
+          [x - size * 0.38, y + size * 0.25], [x - size, y],
+          [x - size * 0.38, y - size * 0.25]], '#fff1a0', '#cc833d');
+      }
+    }
+    c.restore();
+  }
+
+  beginImpact() {
+    const impact = Math.max(0, 1 - (this.time - this.lastHit) / HIT_SECONDS);
+    if (impact === 0) return 0;
+    const c = this.ctx;
+    c.save();
+    const phase = (this.time - this.lastHit) * 92;
+    c.translate(Math.sin(phase + 1) * impact * 6, Math.cos(phase) * impact * 3);
+    c.translate(this.w / 2, this.h / 2);
+    c.scale(1 + 0.011 * impact, 1 + 0.011 * impact);
+    c.translate(-this.w / 2, -this.h / 2);
+    return impact;
+  }
+
+  endImpact(impact) {
+    if (impact === 0) return;
+    const c = this.ctx;
+    c.restore();
+    const x = this.w / 2;
+    const y = this.h / 2;
+    const vignette = c.createRadialGradient(x, y, y * 0.78, x, y, x * 1.15);
+    vignette.addColorStop(0, '#b52b3200');
+    vignette.addColorStop(1, '#ce3943b0');
+    c.save();
+    c.globalAlpha = impact;
+    this.rect(0, 0, this.w, this.h, vignette);
+    c.restore();
+  }
+
+  speedLines(turkey, camera) {
+    const x = turkey.x - camera;
+    const y = this.ground - turkey.y;
+    const c = this.ctx;
+    c.save();
+    for (let i = 0; i < 4; i++) {
+      const phase = fraction(this.time * 5 + i * 0.27);
+      const end = x - 44 - phase * 56;
+      c.globalAlpha = (1 - phase) * 0.72;
+      this.line([[end - 19 - i * 6, y - 8 - i * 11], [end, y - 8 - i * 11]], '#fff0c7', 2.3);
+    }
+    c.restore();
   }
 
   drawItem(item, x) {
@@ -370,41 +581,79 @@ export class Renderer {
   turkeyPose(x, y, turkey = {}, scale = 1, angle = 0) {
     const c = this.ctx;
     const duck = turkey.ducking;
-    const stride = turkey.airborne ? 0 : Math.sin((turkey.runPhase ?? 0) * TAU) * (duck ? 7 : 13);
+    const bodyY = duck ? -15 : -28;
+    const phase = (turkey.runPhase ?? 0) * TAU;
+    const ink = '#59342c';
     c.save();
     c.translate(x, y);
     c.rotate(angle);
     c.scale(scale, scale);
-    const bodyY = duck ? -13 : -27;
-    for (const leg of [-1, 1]) {
-      const footX = leg * (7 + stride);
-      const footY = turkey.airborne ? -10 - leg * 4 : -1;
-      this.line([[leg * 6, bodyY + 9], [footX - 3, footY - 6], [footX, footY],
-        [footX + 7, footY]], leg < 0 ? '#b76839' : '#de893f', 3);
+
+    for (const side of [-1, 1]) {
+      const stride = Math.sin(phase) * side;
+      const lift = turkey.airborne ? 11 + side * 4 : Math.max(0, Math.cos(phase) * side) * 7;
+      const foot = turkey.airborne ? side * 6 : side * 7 + stride * (duck ? 8 : 14);
+      const leg = [[side * 6, bodyY + 9], [foot * 0.46 - 5, -8 - lift * 0.64],
+        [foot, -2 - lift], [foot + 8, -2 - lift]];
+      this.line(leg, ink, 4.8);
+      this.line(leg, side < 0 ? '#ad633d' : '#ec9a4c', 2.5);
+      this.line([[foot + 2, -2 - lift], [foot + 6, -5 - lift]], '#dc8646', 1.6);
     }
-    const feathers = ['#963f34', '#b95337', '#d37844', '#e7a157', '#b75938'];
-    for (let i = 0; i < feathers.length; i++) {
-      const rotation = -1.20 + i * 0.26;
-      const cy = bodyY - (duck ? 3 : 19) - i * (duck ? 0 : 2);
-      const cx = -32 + i * 4;
-      this.oval(cx, cy, duck ? 7 : 8, duck ? 19 : 23, feathers[i],
-        duck ? rotation - 0.57 : rotation, '#70372f');
-      this.oval(cx - 3, cy - 6, 4, 7, '#f3b86d66', rotation);
+
+    const featherColors = ['#9b3f37', '#b65236', '#ce663d', '#dc8749', '#edaa60'];
+    for (let i = 0; i < featherColors.length; i++) {
+      const length = 40 + i * 2;
+      c.save();
+      c.translate(duck ? -22 : -16, bodyY + 2);
+      c.rotate(-1.39 + i * (duck ? 0.22 : 0.29) + (duck ? 0.13 : 0));
+      this.oval(0, -length * 0.55, 8, length * 0.51, featherColors[i], 0, ink);
+      this.oval(-2, -length * 0.71, 3, length * 0.23, '#ffcb8248');
+      this.line([[0, -10], [-1, -length + 6]], '#713d36', 1.4);
+      this.line([[-4, -length + 11], [0, -length + 15], [5, -length + 10]], '#ffcd8f85', 1.4);
+      c.restore();
     }
-    this.oval(-3, bodyY, duck ? 27 : 23, duck ? 12 : 18, '#fff0ce', 0, '#804934');
-    this.oval(-9, bodyY + (turkey.celebrate ? -9 : 2), 14, 9, '#e4b67c',
-      turkey.celebrate ? -0.85 : -0.25, '#a36846');
-    if (turkey.celebrate) this.oval(5, bodyY - 18, 9, 18, '#f8d39c', 0.72, '#9c5b40');
+
+    const bodyWidth = duck ? 29 : 25;
+    const bodyHeight = duck ? 12 : 18;
+    this.oval(0, bodyY, bodyWidth, bodyHeight, '#e9bf88');
+    c.save();
+    c.clip();
+    this.oval(-6, bodyY - 8, bodyWidth + 1, bodyHeight * 0.81, '#fff0cf');
+    this.oval(10, bodyY + bodyHeight, bodyWidth * 0.95, bodyHeight * 0.53, '#ba7e57');
+    this.oval(-10, bodyY - 10, 11, 4, '#fff9e0', -0.23);
+    c.restore();
+    this.oval(0, bodyY, bodyWidth, bodyHeight, null, 0, ink);
+
+    const wingAngle = turkey.celebrate ? 0.86 : turkey.airborne
+      ? Math.sin(this.time * 23 + phase) * 0.73 - (turkey.vy > 0 ? 0.1 : 0.35)
+      : -0.22 + Math.cos(phase) * 0.09;
+    c.save();
+    c.translate(-8, bodyY - 1);
+    c.rotate(wingAngle);
+    this.oval(-5, 2, 15, 8, '#dbab76', -0.08, '#956044');
+    this.oval(-7, 0, 10, 4, '#f4d5a6', -0.08);
+    this.line([[-16, 4], [-9, 6], [-3, 4]], '#a9704e', 1.4);
+    c.restore();
+
+    const headX = duck ? 31 : 22;
     const headY = duck ? -18 : -50;
-    this.oval(16, duck ? -14 : -35, 8, duck ? 7 : 13, '#e9bf90', 0.29, '#804934');
-    this.oval(21, headY, 10, 9, '#f8d6a0', 0, '#804934');
-    this.oval(26, headY + 8, 3.8, 7, '#b83e37', -0.35);
-    this.poly([[28, headY - 3], [39, headY + 1], [28, headY + 5]], '#f0a247', '#99512f');
+    this.oval(duck ? 20 : 16, duck ? -15 : -36, 8, duck ? 8 : 14, '#d9a579',
+      duck ? Math.PI / 2 : 0.29, ink);
+    this.oval(headX, headY, 11, 10, '#f7d4a3', 0, ink);
+    this.oval(headX + 4, headY + 9, 4.5, 7, '#b63a3a', -0.29, '#793232');
+    this.oval(headX + 3, headY + 8, 1.6, 3, '#eb6453', -0.29);
+    this.poly([[headX + 7, headY - 3], [headX + 20, headY + 1], [headX + 7, headY + 5]],
+      '#f3ad54', ink);
+    this.poly([[headX + 8, headY + 1], [headX + 18, headY + 1], [headX + 8, headY + 4]],
+      '#c97139');
+    this.line([[headX + 4, headY - 8], [headX + 10, headY - 5], [headX + 11, headY - 1]],
+      '#b6383a', 3.8);
     if (turkey.hidden && this.time % 2.8 > 2.60) {
-      this.line([[22, headY - 1], [26, headY - 1]], INK);
+      this.line([[headX - 1, headY - 2], [headX + 4, headY - 2]], ink);
     } else {
-      this.oval(24, headY - 2, 2.5, 3, INK);
-      this.oval(24.8, headY - 3, 0.8, 0.8, '#fff7df');
+      this.oval(headX + 1, headY - 2, 4, 4.5, '#fff8df');
+      this.oval(headX + 2, headY - 2, 2.7, 3.4, '#332229');
+      this.oval(headX + 2.8, headY - 3.3, 1, 1, '#fff8df');
     }
     c.restore();
   }
@@ -417,50 +666,111 @@ export class Renderer {
 
   farmerPose(x, y, farmer = {}, scale = 1, holding = false) {
     const c = this.ctx;
-    const stride = Math.sin((farmer.runPhase ?? 0) * TAU) * 18;
+    const phase = (farmer.runPhase ?? 0) * TAU;
+    const running = !holding && farmer.state !== undefined;
+    const lunging = farmer.state === 'lunge';
+    const stride = running ? Math.sin(phase) * 25 : 0;
     c.save();
     c.translate(x, y);
     c.scale(scale * (farmer.facing ?? 1), scale);
-    if (farmer.state === 'lunge') c.rotate(0.31);
+
     for (const side of [-1, 1]) {
-      const foot = side * (8 + stride);
-      this.line([[side * 7, -46], [foot * 0.75, -24], [foot, -6]], side < 0 ? '#3f5567' : '#52768b', 13);
-      this.line([[foot - 3, -5], [foot + 9, -5]], '#332630', 10);
+      const foot = side * (9 + stride);
+      const lift = running ? Math.max(0, Math.cos(phase) * side) * 12 : 0;
+      const knee = foot * 0.62 + (side === 1 ? 4 : -4);
+      const leg = [[side * 8, -47], [knee, -25 - lift * 0.42], [foot, -8 - lift]];
+      this.line(leg, '#2e333f', 17);
+      this.line(leg, side === 1 ? '#496f87' : '#344c66', 12);
+      this.line([[knee + 2, -24 - lift * 0.42], [foot + 2, -11 - lift]], '#7799a5', 2.2);
+      this.round(foot - 6, -12 - lift, 19, 10, 4, '#422b2b', '#2f2329');
+      this.line([[foot - 4, -3 - lift], [foot + 10, -3 - lift]], '#211b23', 2.5);
     }
-    this.line([[-13, -78], [-21, -60], [-26 - stride / 2, -61]], '#913c35', 12);
-    this.round(-21, -94, 42, 57, 11, '#c45341', INK);
+
+    if (lunging) {
+      c.translate(0, -44);
+      c.rotate(0.49);
+      c.translate(0, 44);
+    } else if (running) {
+      c.translate(0, -Math.abs(Math.cos(phase)) * 2);
+    }
+
+    const arm = (side, handX, handY) => {
+      const elbowX = handX * 0.55 - 5;
+      const elbowY = holding ? -94 : lunging && side > 0 ? -74 : -63;
+      const path = [[side * 14, -83], [elbowX, elbowY], [handX, handY]];
+      this.line(path, '#572d31', 15);
+      this.line(path, side < 0 ? '#873b3a' : '#bc513e', 11);
+      this.line([[handX * 0.83 + elbowX * 0.17, handY * 0.83 + elbowY * 0.17],
+        [handX, handY]], '#e87956', 8);
+      this.oval(handX, handY, 6, 6, side < 0 ? '#c3815e' : '#edae79', 0, '#784b3d');
+    };
+    arm(-1, lunging ? -31 : -16 + stride * 0.83, -57 - Math.max(0, stride) * 0.45);
+    this.round(-23, -96, 46, 59, 12, '#b6493d', '#583036');
     c.save();
     c.beginPath();
-    c.roundRect(-20, -93, 40, 54, 10);
+    c.roundRect(-22, -95, 44, 57, 11);
     c.clip();
-    for (let i = -15; i <= 20; i += 12) this.rect(i, -94, 4, 57, '#822f325d');
-    for (let i = -85; i < -38; i += 11) this.rect(-22, i, 44, 4, '#792d386e');
+    this.rect(-23, -95, 15, 57, '#813739');
+    this.rect(11, -95, 12, 57, '#dd6a4d');
+    for (let i = -15; i <= 20; i += 12) this.rect(i, -95, 4, 57, '#792d386e');
+    for (let i = -88; i < -37; i += 11) this.rect(-23, i, 46, 4, '#792d3888');
     c.restore();
-    this.round(-15, -74, 30, 34, 5, '#4c748a', '#354d60');
-    this.line([[-16, -92], [-10, -73]], '#557f97', 5);
-    this.line([[15, -92], [10, -73]], '#557f97', 5);
-    this.round(-6, -67, 12, 9, 2, '#7094a0');
-    this.oval(-10, -72, 2, 2, GOLD);
-    this.oval(10, -72, 2, 2, GOLD);
-    this.oval(6, -103, 18, 20, '#e2a370', 0, '#6c4439');
-    this.oval(23, -101, 6, 5, '#e2a370', 0, '#6c4439');
-    this.oval(14, -107, 2.5, 2.5, INK);
-    this.line([[13, -94], [21, -95]], '#78433a', 3);
-    this.round(-16, -132, 37, 19, 6, '#e3aa54', '#795039');
-    this.rect(-15, -119, 35, 4, '#9d6541');
-    this.oval(3, -115, 31, 5, '#f2bc66', -0.06, '#795039');
-    const handX = holding ? 57 : 24 + stride;
-    const handY = holding ? -105 : -60;
-    this.line([[13, -82], [23, holding ? -94 : -68], [handX, handY]], '#ba4d3e', 12);
-    this.oval(handX, handY, 6, 6, '#e4a671', 0, '#87523d');
+    this.round(-17, -75, 34, 37, 6, '#517890', '#354456');
+    this.round(-16, -73, 9, 32, 4, '#3d5a74');
+    this.line([[-17, -94], [-11, -74]], '#3e6079', 6);
+    this.line([[16, -94], [10, -74]], '#648da2', 6);
+    this.round(-6, -67, 14, 11, 3, '#7199ab', '#44637d');
+    this.line([[-6, -50], [11, -50]], '#63879e', 2);
+    this.oval(-10, -72, 2.3, 2.3, GOLD);
+    this.oval(10, -72, 2.3, 2.3, GOLD);
+
+    this.oval(6, -104, 19, 21, '#d08c63', 0, '#633d36');
+    this.oval(9, -109, 15, 13, '#efb381');
+    this.oval(-8, -103, 5, 6, '#d79568', 0, '#885943');
+    this.oval(24, -101, 6.5, 5.2, '#eaa978', 0, '#885943');
+    this.oval(25, -102.4, 3.4, 1.6, '#f7c498');
+    this.oval(18, -111, 3.6, 3.5, '#ffebce');
+    this.oval(10, -112, 3.5, 3.4, '#ffebce');
+    this.oval(19, -111, 1.5, 2.1, INK);
+    this.oval(11, -112, 1.6, 2.1, INK);
+    const brow = farmer.state === 'search' ? -3 : 2;
+    this.line([[7, -117 - brow], [16, -114], [20, -115 - brow * 0.5]], '#59352f', 2.7);
+    this.poly([[11, -99], [17, -101], [23, -98], [22, -95], [17, -97],
+      [12, -95], [8, -96]], '#653e33');
+    this.line([[13, -92], [20, -93]], '#77483c', 2);
+
+    this.round(-18, -137, 39, 25, 7, '#dca054', '#704b34');
+    this.round(-15, -135, 27, 12, 5, '#f4c978');
+    this.rect(-16, -122, 35, 5, '#854b39');
+    this.rect(-15, -122, 14, 2, '#be784c');
+    this.oval(3, -115, 33, 6, '#b77948', -0.06, '#704b34');
+    this.oval(2, -117, 31, 4, '#f3c477', -0.06);
+    arm(1, holding ? 57 : lunging ? 52 : 24 - stride * 0.75,
+      holding ? -105 : lunging ? -83 : -63 + Math.min(0, stride) * 0.48);
     c.restore();
   }
 
-  leaves(particles = []) {
-    for (const leaf of particles) {
-      this.oval(leaf.x, leaf.y, leaf.size, leaf.size * 0.47,
-        LEAF_COLORS[leaf.color], leaf.angle, '#a34d3566');
+  leaves(camera) {
+    const c = this.ctx;
+    c.save();
+    for (let i = 0; i < 18; i++) {
+      const offset = fraction(Math.sin((i + 1) * 119.71) * 43758.5453);
+      const phase = this.time * (0.71 + offset * 0.6) + i * 2.4;
+      const x = fraction(offset + (this.time * (24 + i % 5 * 7)
+        - camera * (0.09 + offset * 0.14) + Math.sin(phase) * 16) / (this.w + 34)) * (this.w + 34) - 17;
+      const y = fraction(i * 0.618034 + this.time * (17 + offset * 36) / (this.h + 28)) * (this.h + 28) - 14;
+      const size = 4 + offset * 4;
+      c.save();
+      c.translate(x, y);
+      c.rotate(phase * 0.72);
+      c.globalAlpha = 0.61 + offset * 0.23;
+      this.poly([[-size, 0], [-size * 0.27, -size * 0.44], [size * 0.47, -size * 0.36],
+        [size, 0], [size * 0.33, size * 0.39], [-size * 0.37, size * 0.30]],
+        LEAF_COLORS[i % LEAF_COLORS.length]);
+      this.line([[-size * 0.76, 0], [size * 0.59, -0.4]], '#8c4935', 0.8);
+      c.restore();
     }
+    c.restore();
   }
 
   drawHUD(state) {
@@ -505,14 +815,41 @@ export class Renderer {
     if (filled) this.oval(x + 7, y + 6, 2.5, 3.5, '#bc483b');
   }
 
+  leafFrame() {
+    const c = this.ctx;
+    const colors = ['#a95238', '#c76f40', '#da914e', '#efb765'];
+    for (const side of [-1, 1]) {
+      for (const edge of [-1, 1]) {
+        for (let i = 0; i < 8; i++) {
+          const sample = this.decorSample(i + side * 9, edge + 25);
+          const insetX = 22 + i * 13 + sample * 18;
+          const insetY = 25 + (7 - i) * 6 + sample * 17;
+          const size = 12 + sample * 12;
+          c.save();
+          c.translate(side < 0 ? insetX : this.w - insetX, edge < 0 ? insetY : this.h - insetY);
+          c.rotate(side * edge * (0.37 + sample * 1.17));
+          c.globalAlpha = 0.66 + sample * 0.24;
+          this.poly([[-size, 0], [-size * 0.56, -size * 0.36], [-size * 0.22, -size * 0.29],
+            [size * 0.19, -size * 0.47], [size, -size * 0.06], [size * 0.27, size * 0.38],
+            [-size * 0.17, size * 0.28], [-size * 0.48, size * 0.36]],
+            colors[i % colors.length], '#87513b');
+          this.line([[-size * 0.95, 0], [size * 0.61, -size * 0.04]], '#87513b', 1.3);
+          c.restore();
+        }
+      }
+    }
+  }
+
   drawTitle(state) {
     this.time = state.time;
     this.background('farm', 28);
-    this.leaves(state.particles);
-    this.farmerPose(1133, this.ground + 6, { facing: -1, runPhase: 0 }, 1.75);
-    this.hay(1083, this.ground + 10, 174, 149);
-    this.shadow(594, this.ground + 6, 139, 13);
-    this.turkeyPose(608, this.ground + 3, { celebrate: true }, 3.5);
+    this.leaves(28);
+    const phase = this.time * 1.45;
+    this.shadow(327, this.ground + 9, 87, 11);
+    this.farmerPose(327, this.ground + 5, { facing: 1, state: 'chase', runPhase: phase }, 1.95);
+    this.shadow(755, this.ground + 8, 121, 13);
+    this.turkeyPose(755, this.ground + 3, { runPhase: phase + 0.28 }, 3.15);
+    this.leafFrame();
     this.text('PARDON!', 640, 201, 139, '#ffa64e');
     this.text('The Great Turkey Escape', 640, 293, 43);
     this.text('The farmer wants dinner. You ARE dinner. RUN!', 640, 345, 23);
@@ -528,6 +865,8 @@ export class Renderer {
 
   drawCaught(state) {
     this.time = state.time;
+    this.trackRunner(state, false);
+    const impact = this.beginImpact();
     this.background('kitchen', 184);
     this.rect(0, 0, this.w, this.h, '#291b2b89');
     this.text('CAUGHT!', 640, 184, 112, '#ff8062');
@@ -535,7 +874,9 @@ export class Renderer {
     this.shadow(623, this.ground + 8, 140, 14);
     this.farmerPose(574, this.ground, { facing: 1 }, 2.28, true);
     this.turkeyPose(706, this.ground - 258, { airborne: true }, 1.94, Math.PI);
+    this.leafFrame();
     this.endPrompt(state);
+    this.endImpact(impact);
   }
 
   drawEscaped(state) {
@@ -544,7 +885,7 @@ export class Renderer {
     this.text('ESCAPED!', 640, 183, 110, GOLD);
     this.text('One turkey, officially pardoned.', 640, 270, 32);
     this.shadow(465, this.ground + 8, 135, 13);
-    this.turkeyPose(470, this.ground + 1, { celebrate: true }, 3.15);
+    this.turkeyPose(470, this.ground + 1, { celebrate: true }, 3.55);
     const c = this.ctx;
     c.save();
     c.translate(805, 479);
@@ -557,6 +898,7 @@ export class Renderer {
     this.oval(0, 39, 13, 13, '#b8473a', 0, '#8b3534');
     this.text('★', 0, 39, 15, GOLD, 'center', null);
     c.restore();
+    this.leafFrame();
     this.endPrompt(state);
   }
 

@@ -87,6 +87,7 @@ function resolveItems() {
         item.collected = true;
         game.cornPoints += CONFIG.spawning.CORN_VALUE;
         audio.corn();
+        renderer.spawnCornSparkles(item, game.time);
       }
     } else if (item.kind === 'arch') {
       reachedArch = game.turkey.x >= item.x + item.w / 2;
