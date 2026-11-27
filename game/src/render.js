@@ -338,7 +338,7 @@ export class Renderer {
     }
     this.drawEffects(state.cameraX);
     if (dashing) this.speedLines(state.turkey, state.cameraX);
-    this.drawTurkey(state.turkey, state.turkey.x - state.cameraX);
+    this.drawTurkey(state.turkey, state.turkey.x - state.cameraX, state.farmer.state === 'lunge');
     this.drawFarmer(state.farmer, state.farmer.x - state.cameraX);
     if (!state.frozen || state.currentStage.id === 'farm') this.leaves(state.cameraX);
     this.endImpact(impact);
@@ -501,10 +501,16 @@ export class Renderer {
         break;
       case 'pitchfork': {
         const center = x + w / 2;
-        this.line([[center - 8, g - 1], [center + 3, y + 31]], '#905c45', 8);
-        this.line([[center - 14, y + 4], [center - 14, y + 22], [center - 8, y + 29],
-          [center + 11, y + 29], [center + 17, y + 22], [center + 17, y + 4]], '#4c4249', 5);
-        this.line([[center + 2, y + 2], [center + 2, y + 29]], '#4c4249', 5);
+        const handle = [[center - 8, g - 1], [center + 3, y + 31]];
+        const outerTines = [[center - 14, y + 4], [center - 14, y + 22], [center - 8, y + 29],
+          [center + 11, y + 29], [center + 17, y + 22], [center + 17, y + 4]];
+        const middleTine = [[center + 2, y + 2], [center + 2, y + 29]];
+        this.line(handle, '#3c251f', 12);
+        this.line(handle, '#70432f', 7);
+        this.line(outerTines, '#382622', 9);
+        this.line(middleTine, '#382622', 9);
+        this.line(outerTines, '#4b4041', 4);
+        this.line(middleTine, '#4b4041', 4);
         break;
       }
       case 'oven':
@@ -581,10 +587,25 @@ export class Renderer {
     this.line(spiral, '#b77a38', 2.5);
   }
 
-  drawTurkey(turkey, x) {
+  drawTurkey(turkey, x, alarmed) {
     const lift = turkey.y ?? 0;
     this.shadow(x, this.ground + 4, Math.max(9, 33 - lift * 0.11));
-    this.turkeyPose(x, this.ground - lift, { ...turkey, airborne: lift > 0 });
+    this.turkeyPose(x, this.ground - lift, { ...turkey, airborne: lift > 0, alarmed });
+  }
+
+  sweatDrop(x, y, scale = 1) {
+    const c = this.ctx;
+    c.save();
+    c.translate(x, y);
+    c.scale(scale, scale);
+    c.beginPath();
+    c.moveTo(0, 0);
+    c.quadraticCurveTo(-5, -2, -10, 0);
+    c.quadraticCurveTo(-14, 3, -10, 6);
+    c.quadraticCurveTo(-6, 8, 0, 0);
+    c.closePath();
+    this.paint('#b2dce7', '#608494', 1.1);
+    c.restore();
   }
 
   turkeyPose(x, y, turkey = {}, scale = 1, angle = 0) {
@@ -657,7 +678,12 @@ export class Renderer {
       '#c97139');
     this.line([[headX + 4, headY - 8], [headX + 10, headY - 5], [headX + 11, headY - 1]],
       '#b6383a', 3.8);
-    if (turkey.hidden && this.time % 2.8 > 2.60) {
+    if (turkey.alarmed) {
+      this.oval(headX + 1, headY - 2.5, 5.5, 6.2, '#fff8df', 0, ink);
+      this.oval(headX + 2.5, headY - 2.5, 2.5, 3.4, '#332229');
+      this.oval(headX + 3.1, headY - 3.9, 1, 1, '#fff8df');
+      this.sweatDrop(headX - 8, headY - 9, 0.65);
+    } else if (turkey.hidden && this.time % 2.8 > 2.60) {
       this.line([[headX - 1, headY - 2], [headX + 4, headY - 2]], ink);
     } else {
       this.oval(headX + 1, headY - 2, 4, 4.5, '#fff8df');
@@ -677,6 +703,7 @@ export class Renderer {
     const c = this.ctx;
     const phase = (farmer.runPhase ?? 0) * TAU;
     const running = !holding && farmer.state !== undefined;
+    const sprinting = !holding && farmer.state === 'chase';
     const searching = farmer.state === 'search';
     const lunging = farmer.state === 'lunge';
     const stride = running ? Math.sin(phase) * 25 : 0;
@@ -702,12 +729,17 @@ export class Renderer {
       c.translate(0, 44);
     } else if (running) {
       c.translate(0, -Math.abs(Math.cos(phase)) * 2);
+      if (sprinting) {
+        c.translate(0, -44);
+        c.rotate(0.2);
+        c.translate(0, 44);
+      }
     }
 
     const arm = (side) => {
       const near = side === 1;
       const shoulder = near ? [-6, -85] : [-11, -86];
-      const swing = -side * (9 + stride) / 34 * 0.78;
+      const swing = -side * (9 + stride) / 34 * (sprinting ? 1.11 : 0.78);
       const forearmAngle = -0.22 - swing * 0.36;
       let elbow = [shoulder[0] + Math.sin(swing) * 22, shoulder[1] + Math.cos(swing) * 22];
       let wrist = [elbow[0] + Math.cos(forearmAngle) * 18, elbow[1] + Math.sin(forearmAngle) * 18];
@@ -788,15 +820,7 @@ export class Renderer {
     this.rect(-15, -122, 14, 2, '#be784c');
     this.oval(3, -115, 33, 6, '#b77948', -0.06, '#704b34');
     this.oval(2, -117, 31, 4, '#f3c477', -0.06);
-    if (!holding && (farmer.state === 'chase' || lunging)) {
-      c.beginPath();
-      c.moveTo(-33, -129);
-      c.quadraticCurveTo(-38, -131, -43, -129);
-      c.quadraticCurveTo(-47, -126, -43, -123);
-      c.quadraticCurveTo(-39, -121, -33, -129);
-      c.closePath();
-      this.paint('#b2dce7', '#608494', 1.1);
-    }
+    if (!holding && (sprinting || lunging)) this.sweatDrop(-33, -129);
     c.restore();
   }
 
