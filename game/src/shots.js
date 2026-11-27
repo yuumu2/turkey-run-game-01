@@ -7,6 +7,7 @@ const SHOT_CAMERA_ANCHOR = 440;
 export function stageShot(name, game) {
   game.frozen = true;
   game.time = 0.72;
+  delete game.shotDustX;
 
   switch (name) {
     case 'farm':
@@ -14,6 +15,14 @@ export function stageShot(name, game) {
         ['corn', 148, 44], ['corn', 180, 66], ['corn', 213, 44],
         ['fence', 300], ['haybale', 560],
       ]);
+      break;
+    case 'barn':
+      stageRun(game, 1, 3600, 1152, [
+        ['crate', -340], ['haybale', -20], ['pitchfork', 300],
+      ]);
+      game.turkey.y = 70;
+      game.turkey.vy = 180;
+      game.shotDustX = game.turkey.x - 85;
       break;
     case 'kitchen':
       stageRun(game, 2, 3570, 1961, [
@@ -56,7 +65,7 @@ function stageRun(game, stageIndex, offset, score, props) {
   Object.assign(game, {
     state: 'playing',
     currentStage: stage,
-    stageBanner: CONFIG.presentation.STAGE_BANNER_SECONDS / 2,
+    stageBanner: 0,
     score,
     distance: Math.floor(x / CONFIG.game.PIXELS_PER_METRE),
   });

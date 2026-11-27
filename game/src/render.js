@@ -46,16 +46,16 @@ export class Renderer {
     this.paint(fill, stroke);
   }
 
-  poly(points, fill, stroke) {
+  poly(points, fill, stroke, strokeWidth) {
     const c = this.ctx;
     c.beginPath();
     c.moveTo(...points[0]);
     for (const point of points.slice(1)) c.lineTo(...point);
     c.closePath();
-    this.paint(fill, stroke);
+    this.paint(fill, stroke, strokeWidth);
   }
 
-  paint(fill, stroke) {
+  paint(fill, stroke, strokeWidth = 2) {
     const c = this.ctx;
     if (fill) {
       c.fillStyle = fill;
@@ -63,7 +63,7 @@ export class Renderer {
     }
     if (stroke) {
       c.strokeStyle = stroke;
-      c.lineWidth = 2;
+      c.lineWidth = strokeWidth;
       c.stroke();
     }
   }
@@ -340,21 +340,30 @@ export class Renderer {
     if (dashing) this.speedLines(state.turkey, state.cameraX);
     this.drawTurkey(state.turkey, state.turkey.x - state.cameraX);
     this.drawFarmer(state.farmer, state.farmer.x - state.cameraX);
-    this.leaves(state.cameraX);
+    if (!state.frozen || state.currentStage.id === 'farm') this.leaves(state.cameraX);
     this.endImpact(impact);
   }
 
   trackRunner(state, animate = true) {
-    const { turkey, time, world, frozen } = state;
+    const { turkey, time, world, frozen, shotDustX } = state;
     const previous = this.previousRunner;
-    const sameRun = previous?.world === world && time >= previous.time;
+    const sameRun = previous?.world === world && time >= previous.time
+      && previous.frozen === frozen && previous.shotDustX === shotDustX;
     if (!sameRun) {
       this.effects = [];
       this.lastDust = -Infinity;
       this.lastHit = -Infinity;
+      this.shotDustSpawned = false;
     }
-    this.previousRunner = { world, time, x: turkey.x, y: turkey.y, lives: turkey.lives };
-    if (frozen || !sameRun) return false;
+    this.previousRunner = { world, time, frozen, shotDustX, x: turkey.x, y: turkey.y, lives: turkey.lives };
+    if (frozen) {
+      if (!this.shotDustSpawned && Number.isFinite(shotDustX)) {
+        this.spawnDust(shotDustX, true, time - 0.1);
+        this.shotDustSpawned = true;
+      }
+      return false;
+    }
+    if (!sameRun) return false;
     if (turkey.lives < previous.lives) this.lastHit = time;
     if (!animate) return false;
 
@@ -369,8 +378,8 @@ export class Renderer {
     return elapsed > 0 && distance / elapsed > (CRUISE_SPEED + DASH_SPEED) / 2;
   }
 
-  spawnDust(x, landing) {
-    this.lastDust = this.time;
+  spawnDust(x, landing, time = this.time) {
+    this.lastDust = time;
     const count = landing ? 6 : 2;
     for (let i = 0; i < count; i++) {
       const spread = i - (count - 1) / 2;
@@ -378,7 +387,7 @@ export class Renderer {
         kind: 'dust', x: x - 8 + spread * 5, y: this.ground - 3,
         vx: landing ? spread * 21 : -28 - i * 13,
         vy: -12 - i * 3, size: landing ? 7 + i % 3 * 2 : 4 + i * 2,
-        time: this.time, duration: landing ? 0.43 : 0.29,
+        time, duration: landing ? 0.43 : 0.29,
       });
     }
   }
@@ -471,12 +480,12 @@ export class Renderer {
     if (kind !== 'corn') this.shadow(x + w / 2, g + 3, w * 0.57);
     switch (kind) {
       case 'fence':
-        this.round(x, y + 22, w, 11, 3, '#794432');
-        this.round(x, y + 47, w, 10, 3, '#794432');
+        this.round(x, y + 22, w, 11, 3, '#4d2c24');
+        this.round(x, y + 47, w, 10, 3, '#4d2c24');
         for (let i = 0; i < 3; i++) {
           const left = x + i * (w - 15) / 2;
           this.poly([[left, y + 10], [left + 7, y], [left + 15, y + 9],
-            [left + 15, g], [left, g]], '#c28655', '#633a31');
+            [left + 15, g], [left, g]], '#925737', '#43241f', 3.5);
           this.oval(left + 7, y + 27, 2, 2, INK);
         }
         break;
@@ -779,6 +788,15 @@ export class Renderer {
     this.rect(-15, -122, 14, 2, '#be784c');
     this.oval(3, -115, 33, 6, '#b77948', -0.06, '#704b34');
     this.oval(2, -117, 31, 4, '#f3c477', -0.06);
+    if (!holding && (farmer.state === 'chase' || lunging)) {
+      c.beginPath();
+      c.moveTo(-33, -129);
+      c.quadraticCurveTo(-38, -131, -43, -129);
+      c.quadraticCurveTo(-47, -126, -43, -123);
+      c.quadraticCurveTo(-39, -121, -33, -129);
+      c.closePath();
+      this.paint('#b2dce7', '#608494', 1.1);
+    }
     c.restore();
   }
 
