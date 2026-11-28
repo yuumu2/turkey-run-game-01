@@ -8,6 +8,8 @@ const LEAF_COLORS = ['#c74731', '#e77835', '#ffbf55'];
 const STAGE_LABELS = ['FARM', 'BARN', 'KITCHEN'];
 const HIT_SECONDS = 0.2;
 const DUST_INTERVAL = 0.095;
+const DASH_FEATHER_INTERVAL = 0.19;
+const LUNGE_SHAKE_SECONDS = 0.14;
 const CHARACTER_SCALE = 1.25;
 
 function fraction(value) {
@@ -26,6 +28,9 @@ export class Renderer {
     this.previousRunner = null;
     this.lastDust = -Infinity;
     this.lastHit = -Infinity;
+    this.lastLungeShake = -Infinity;
+    this.lastDashFeather = -Infinity;
+    this.featherSequence = 0;
   }
 
   rect(x, y, w, h, fill) {
@@ -402,6 +407,9 @@ export class Renderer {
       this.effects = [];
       this.lastDust = -Infinity;
       this.lastHit = -Infinity;
+      this.lastLungeShake = -Infinity;
+      this.lastDashFeather = -Infinity;
+      this.featherSequence = 0;
       this.shotDustSpawned = false;
     }
     this.previousRunner = { world, time, frozen, shotDustX, x: turkey.x, y: turkey.y, lives: turkey.lives };
@@ -417,14 +425,47 @@ export class Renderer {
     if (!animate) return false;
 
     const distance = turkey.x - previous.x;
+    const { CRUISE_SPEED, DASH_SPEED } = this.config.turkey;
+    const elapsed = time - previous.time;
+    const dashing = elapsed > 0 && distance / elapsed > (CRUISE_SPEED + DASH_SPEED) / 2;
     if (turkey.y === 0 && previous.y > 0) {
       this.spawnDust(turkey.x, true);
+      this.spawnFeathers(turkey.x - 12, this.ground - 15, time, 3);
+    } else if (previous.y === 0 && turkey.y > 0) {
+      this.spawnFeathers(previous.x - 12, this.ground - 17, time, 3);
     } else if (turkey.y === 0 && distance > 0 && time - this.lastDust >= DUST_INTERVAL) {
       this.spawnDust(turkey.x, false);
     }
-    const { CRUISE_SPEED, DASH_SPEED } = this.config.turkey;
-    const elapsed = time - previous.time;
-    return elapsed > 0 && distance / elapsed > (CRUISE_SPEED + DASH_SPEED) / 2;
+    if (dashing && time - this.lastDashFeather >= DASH_FEATHER_INTERVAL) {
+      this.spawnFeathers(turkey.x - 40, this.ground - turkey.y - 24, time, 1);
+      this.lastDashFeather = time;
+    }
+    return dashing;
+  }
+
+  spawnFeathers(x, y, time, count, burst = false) {
+    const sequence = this.featherSequence++;
+    for (let i = 0; i < count; i++) {
+      const sample = this.decorSample(sequence, i + 31);
+      const spread = i - (count - 1) / 2;
+      this.effects.push({
+        kind: 'feather', x: x + spread * 4, y,
+        vx: burst ? spread * 32 - 10 : -35 + spread * 13 - sample * 15,
+        vy: -18 - sample * 32,
+        size: (burst ? 5.5 : 4) + sample * 2.5,
+        angle: sample * TAU, ivory: i % 2 === 0,
+        time, duration: 0.32 + sample * 0.17,
+      });
+    }
+  }
+
+  closeCallEffect(x, lift, time) {
+    this.spawnFeathers(x - 12, this.ground - lift - 30, time, 7, true);
+    this.shakeLunge(time);
+  }
+
+  shakeLunge(time) {
+    this.lastLungeShake = time;
   }
 
   spawnDust(x, landing, time = this.time) {
@@ -468,6 +509,15 @@ export class Renderer {
         glow.addColorStop(1, '#ffe3b500');
         c.globalAlpha = remaining * 0.72;
         this.oval(x, y, size, size * 0.7, glow);
+      } else if (particle.kind === 'feather') {
+        const size = particle.size;
+        c.save();
+        c.globalAlpha = remaining * 0.86;
+        c.translate(x, y + age * age * 74);
+        c.rotate(particle.angle + age * 4);
+        this.oval(0, 0, size, size * 0.35, particle.ivory ? '#fff8e5' : '#e6bd89', 0, '#916549');
+        this.line([[-size * 0.9, 0], [size * 0.48, 0]], '#aa7e57', 0.8);
+        c.restore();
       } else {
         const size = particle.size * (0.45 + remaining * 0.55);
         c.globalAlpha = remaining;
@@ -482,21 +532,30 @@ export class Renderer {
 
   beginImpact() {
     const impact = Math.max(0, 1 - (this.time - this.lastHit) / HIT_SECONDS);
-    if (impact === 0) return 0;
+    const lungeAge = this.time - this.lastLungeShake;
+    const shake = Math.max(0, 1 - lungeAge / LUNGE_SHAKE_SECONDS);
+    if (!impact && !shake) return null;
     const c = this.ctx;
     c.save();
-    const phase = (this.time - this.lastHit) * 92;
-    c.translate(Math.sin(phase + 1) * impact * 6, Math.cos(phase) * impact * 3);
+    if (impact) {
+      const phase = (this.time - this.lastHit) * 92;
+      c.translate(Math.sin(phase + 1) * impact * 6, Math.cos(phase) * impact * 3);
+    } else {
+      c.translate(Math.cos(lungeAge * 100) * shake * 3, Math.sin(lungeAge * 126) * shake * 1.7);
+    }
     c.translate(this.w / 2, this.h / 2);
-    c.scale(1 + 0.011 * impact, 1 + 0.011 * impact);
+    const zoom = 1 + (impact ? 0.011 * impact : 0.006 * shake);
+    c.scale(zoom, zoom);
     c.translate(-this.w / 2, -this.h / 2);
-    return impact;
+    return { impact };
   }
 
-  endImpact(impact) {
-    if (impact === 0) return;
+  endImpact(transform) {
+    if (!transform) return;
     const c = this.ctx;
     c.restore();
+    const { impact } = transform;
+    if (!impact) return;
     const x = this.w / 2;
     const y = this.h / 2;
     const vignette = c.createRadialGradient(x, y, y * 0.78, x, y, x * 1.15);
@@ -1047,7 +1106,7 @@ export class Renderer {
     const hot = distance <= hotDistance;
     const x = 188;
     const width = 166;
-    this.text('FARMER', x, 40, 15, hot ? '#ff997f' : '#f1bb7d', 'left');
+    this.text('FARMER HANK', x, 40, 15, hot ? '#ff997f' : '#f1bb7d', 'left');
     this.round(x, 54, width, 13, 5, '#291c22', '#8e5d4b');
     if (fill > 0) this.round(x + 2, 56, (width - 4) * fill, 9, 4, hot ? '#f96250' : '#f1ab50');
     if (hot) this.text('RIGHT BEHIND YOU!', x, 84, 14, '#ff9b86', 'left');
@@ -1140,7 +1199,20 @@ export class Renderer {
     this.text('The dinner is back on...', 640, 194, 31);
     this.shadow(608, this.ground + 8, 156, 17, true);
     this.farmerPose(530, this.ground, { facing: 1 }, 2.28 * CHARACTER_SCALE, true);
+    if (this.caughtWorld !== state.world) {
+      this.caughtWorld = state.world;
+      this.caughtAt = this.time;
+    }
+    const c = this.ctx;
+    c.save();
+    const recoil = state.frozen ? 0 : Math.max(0, 1 - (this.time - this.caughtAt) / 0.24);
+    // Keep the grip in place as the recoil settles into a flattened pose.
+    const gripY = this.ground - 300;
+    c.translate(686, gripY);
+    c.scale(1.15 + recoil * 0.11, 0.8 - recoil * 0.25);
+    c.translate(-686, -gripY);
     this.turkeyPose(686, this.ground - 328, { airborne: true, despair: true }, 1.94 * CHARACTER_SCALE, Math.PI);
+    c.restore();
     this.speechBubble('GOTCHA!', 487, 279, 112);
     this.leafFrame();
     this.endPrompt(state);

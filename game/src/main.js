@@ -128,6 +128,7 @@ function updatePlaying(dt) {
   if (wasLunging && !lunging && game.lungeWasClose && !caught) {
     game.closeCallPoints += CLOSE_CALL_POINTS;
     game.closeCallUntil = game.time + CLOSE_CALL_SECONDS;
+    renderer.closeCallEffect(turkey.x, turkey.y, game.time);
   }
 
   game.distance = Math.floor(turkey.x / tuning.PIXELS_PER_METRE);
@@ -144,6 +145,7 @@ function updatePlaying(dt) {
   }
 
   if (caught) {
+    if (turkey.alive && (wasLunging || lunging)) renderer.shakeLunge(game.time);
     turkey.alive = false;
     game.state = 'caught';
     audio.caught();
